@@ -1,0 +1,13 @@
+{
+	"configuration" : "Mac de Maco",
+	"configurations" : [
+		{
+			"name" : "Mac de Maco",
+			"outputFolder" : "/Users/samue/reperdb/"
+		},
+		{
+			"name" : "AlarcosJ",
+			"outputFolder" : "C:/reperdb"
+		},
+	]	
+}

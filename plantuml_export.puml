@@ -1,0 +1,147 @@
+@startuml
+class Genetic {
+	-hadamards : java.util.List
+	-minColumns : int
+	-maxColumns : int
+	-initPopSize : int
+	-maxPopSize : int
+	-desiredError : float
+	-gates : java.util.List
+}
+
+class Expression {
+	-name : String
+	-expr : String
+	-description : String
+	-type : String
+}
+
+class Grenoble {
+	-interestingRows : int
+	-physicalAngle : float
+	-parallel : boolean
+	-splitted : boolean
+}
+
+class Grover {
+	-truePositions : java.util.List
+}
+
+class Generator
+class GroverAndRudolph {
+	-positionValue : java.util.Map
+}
+
+class Matrix {
+	-interestingRows : int
+	-positionValue : java.util.Map
+}
+
+class QuirkCircuit {
+	-qbits : int
+	-inputQubits : int[]
+	-outputQubits : int[]
+	-code : String
+}
+
+class QProgram {
+	-id : int
+	-name : String
+	-qiskitCode : String
+	-qubits : int
+	-expressions : Expression
+	-shots : int
+	-inputQubits : int[]
+	-outputQubits : int[]
+}
+
+class Operator {
+	-id : Long
+	-name : String
+	-type : String
+	-description : String
+}
+
+class Mutant {
+	-index : int
+	-column : int
+	-row : int
+}
+
+class Project {
+	-id : int
+	-name : String
+	-circuit : Circuit
+	-mutantCycles : MutantCycle
+	-testSuite : TestSuite
+}
+
+class MutantResult {
+	-id : Long
+	-result : Result
+}
+
+class User {
+	-id : String
+}
+
+class ExecConfig {
+	-id : int
+	-executionDate : java.util.Date
+	-machine : String
+	-execAlgorithm : String
+	-killingMatrix : KillingMatrix
+}
+
+class MutantCycle {
+	-id : int
+	-date : java.util.Date
+	-mutants : Mutant
+	-execConfigs : ExecConfig
+}
+
+class KillingMatrix {
+	-id : int
+	-mutantResults : MutantResult
+}
+
+class Result <<enumeration>> {
+	KILLED
+	ALIVE
+	ZOMBIE
+}
+
+class TestCase {
+	-id : Long
+	-index : int
+}
+
+class TestSuite {
+	-id : Long
+}
+
+
+Mutant x--> QuirkCircuit
+QProgram -- "0..1" QuirkCircuit
+QProgram -- "1..*" QuirkCircuit
+TestCase "1" <--x "1" MutantResult
+Mutant "1" -- "*" MutantResult
+TestSuite "1" -- "1..*" TestCase
+Generator "0..1" -- QProgram
+User "0..*" -- "0..*" Project
+Generator x--> "*" Expression
+ExecConfig "1" -- "1" KillingMatrix
+Generator <|-- Genetic
+Generator <|-- Grenoble
+Generator <|-- Grover
+Generator <|-- GroverAndRudolph
+KillingMatrix -- "*" MutantResult
+Generator <|-- Matrix
+Mutant "0..*" x--> "1" QuirkCircuit
+Mutant "1" x--> "1" Operator
+MutantCycle "1" x--> "1..*" Mutant
+MutantCycle "1" -- "1" ExecConfig
+Project "1" -- "1" QProgram
+Project "1..*" -- "0..*" MutantCycle
+Project "1" -- "1" TestSuite
+@enduml
