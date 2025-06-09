@@ -1,28 +1,52 @@
 package edu.uclm.reper.model;
 
+import jakarta.persistence.*;
+import java.util.List;
+
 /**
  * Project entity representing quantum mutation testing projects
  */
+@Entity
+@Table(name = "projects")
 public class Project {
-    private int id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+    
+    @Column(name = "name")
     private String name;
-    private Circuit circuit;
-    private MutantCycle mutantCycles;
-    private TestSuite testSuite;
+    
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<MutantCycle> mutantCycles;
+    
+    @OneToOne(cascade = CascadeType.ALL)
+    @JoinColumn(name = "test_suite_id")
+    private TestSuite testSuite;    
+    
+    @OneToOne(cascade = CascadeType.ALL)
+    @JoinColumn(name = "q_program_id")
+    private QProgram qProgram;
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "user_projects",
+        joinColumns = @JoinColumn(name = "project_id"),
+        inverseJoinColumns = @JoinColumn(name = "user_id")
+    )
+    private List<User> users;
 
     // Constructors
     public Project() {}
 
     public Project(String name) {
         this.name = name;
-    }
-
-    // Getters and Setters
-    public int getId() {
+    }    // Getters and Setters
+    public Long getId() {
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(Long id) {
         this.id = id;
     }
 
@@ -34,19 +58,11 @@ public class Project {
         this.name = name;
     }
 
-    public Circuit getCircuit() {
-        return circuit;
-    }
-
-    public void setCircuit(Circuit circuit) {
-        this.circuit = circuit;
-    }
-
-    public MutantCycle getMutantCycles() {
+    public List<MutantCycle> getMutantCycles() {
         return mutantCycles;
     }
 
-    public void setMutantCycles(MutantCycle mutantCycles) {
+    public void setMutantCycles(List<MutantCycle> mutantCycles) {
         this.mutantCycles = mutantCycles;
     }
 
@@ -56,5 +72,19 @@ public class Project {
 
     public void setTestSuite(TestSuite testSuite) {
         this.testSuite = testSuite;
+    }
+
+    public QProgram getqProgram() {
+        return qProgram;
+    }    public void setqProgram(QProgram qProgram) {
+        this.qProgram = qProgram;
+    }
+
+    public List<User> getUsers() {
+        return users;
+    }
+
+    public void setUsers(List<User> users) {
+        this.users = users;
     }
 }

@@ -1,23 +1,42 @@
 package edu.uclm.reper.model;
 
+import jakarta.persistence.*;
 import java.util.List;
 
-/**
- * Genetic algorithm generator for quantum circuits
- */
+
+@Entity
+@Table(name = "genetic_generators")
+@DiscriminatorValue("GENETIC")
 public class Genetic extends Generator {
+
+    @ElementCollection
+    @CollectionTable(name = "genetic_hadamards", joinColumns = @JoinColumn(name = "genetic_id"))
+    @Column(name = "hadamard")
     private List<Object> hadamards;
+    
+    @Column(name = "min_columns")
     private int minColumns;
+    
+    @Column(name = "max_columns")
     private int maxColumns;
+    
+    @Column(name = "init_pop_size")
     private int initPopSize;
+    
+    @Column(name = "max_pop_size")
     private int maxPopSize;
+    
+    @Column(name = "desired_error")
     private float desiredError;
+    
+    @ElementCollection
+    @CollectionTable(name = "genetic_gates", joinColumns = @JoinColumn(name = "genetic_id"))
+    @Column(name = "gate")
     private List<Object> gates;
 
-    // Constructors
+
     public Genetic() {}
 
-    // Getters and Setters
     public List<Object> getHadamards() {
         return hadamards;
     }

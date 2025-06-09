@@ -1,12 +1,28 @@
 package edu.uclm.reper.model;
 
+import jakarta.persistence.*;
+
 /**
  * QuirkCircuit entity representing quantum circuit definitions
  */
+@Entity
+@Table(name = "quirk_circuits")
 public class QuirkCircuit {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "qbits")
     private int qbits;
+    
+    @Column(name = "input_qubits")
     private int[] inputQubits;
+    
+    @Column(name = "output_qubits")
     private int[] outputQubits;
+    
+    @Column(name = "code", columnDefinition = "TEXT")
     private String code;
 
     // Constructors
@@ -17,9 +33,15 @@ public class QuirkCircuit {
         this.inputQubits = inputQubits;
         this.outputQubits = outputQubits;
         this.code = code;
+    }    // Getters and Setters
+    public Long getId() {
+        return id;
     }
 
-    // Getters and Setters
+    public void setId(Long id) {
+        this.id = id;
+    }
+
     public int getQbits() {
         return qbits;
     }

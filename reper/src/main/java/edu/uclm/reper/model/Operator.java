@@ -1,12 +1,25 @@
 package edu.uclm.reper.model;
 
+import jakarta.persistence.*;
+
 /**
  * Operator entity representing quantum operators
  */
+@Entity
+@Table(name = "operators")
 public class Operator {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
     private Long id;
+    
+    @Column(name = "name")
     private String name;
+    
+    @Column(name = "type")
     private String type;
+    
+    @Column(name = "description")
     private String description;
 
     // Constructors

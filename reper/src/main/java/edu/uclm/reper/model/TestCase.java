@@ -1,11 +1,24 @@
 package edu.uclm.reper.model;
 
+import jakarta.persistence.*;
+
 /**
  * TestCase entity representing individual test cases
  */
+@Entity
+@Table(name = "test_cases")
 public class TestCase {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
     private Long id;
+    
+    @Column(name = "test_index")
     private int index;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "test_suite_id")
+    private TestSuite testSuite;
 
     // Constructors
     public TestCase() {}
@@ -25,9 +38,15 @@ public class TestCase {
 
     public int getIndex() {
         return index;
+    }    public void setIndex(int index) {
+        this.index = index;
     }
 
-    public void setIndex(int index) {
-        this.index = index;
+    public TestSuite getTestSuite() {
+        return testSuite;
+    }
+
+    public void setTestSuite(TestSuite testSuite) {
+        this.testSuite = testSuite;
     }
 }

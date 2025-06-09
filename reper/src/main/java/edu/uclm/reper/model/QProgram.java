@@ -1,22 +1,42 @@
 package edu.uclm.reper.model;
 
+import jakarta.persistence.*;
+
 /**
  * QProgram entity representing quantum programs
  */
+@Entity
+@Table(name = "q_programs")
 public class QProgram {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
     private int id;
+    
+    @Column(name = "name")
     private String name;
+    
+    @Column(name = "qiskit_code", columnDefinition = "TEXT")
     private String qiskitCode;
+    
+    @Column(name = "qubits")
     private int qubits;
+    
+    @OneToOne(cascade = CascadeType.ALL)
+    @JoinColumn(name = "expression_id")
     private Expression expressions;
+    
+    @Column(name = "shots")
     private int shots;
+    
+    @Column(name = "input_qubits")
     private int[] inputQubits;
+    
+    @Column(name = "output_qubits")
     private int[] outputQubits;
 
     // Constructors
-    public QProgram() {}
-
-    // Getters and Setters
+    public QProgram() {}    // Getters and Setters
     public int getId() {
         return id;
     }

@@ -1,24 +1,40 @@
 package edu.uclm.reper.model;
 
+import jakarta.persistence.*;
 import java.util.Date;
+import java.util.List;
 
 /**
  * MutantCycle entity representing a cycle of mutant execution
  */
+@Entity
+@Table(name = "mutant_cycles")
 public class MutantCycle {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
     private int id;
+    
+    @Temporal(TemporalType.TIMESTAMP)
+    @Column(name = "date")
     private Date date;
-    private Mutant mutants;
-    private ExecConfig execConfigs;
+    
+    @OneToMany(mappedBy = "mutantCycle", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<Mutant> mutants;
+    
+    @OneToOne(mappedBy = "mutantCycle", cascade = CascadeType.ALL)
+    private ExecConfig execConfig;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "project_id")
+    private Project project;
 
     // Constructors
     public MutantCycle() {}
 
     public MutantCycle(Date date) {
         this.date = date;
-    }
-
-    // Getters and Setters
+    }    // Getters and Setters
     public int getId() {
         return id;
     }
@@ -29,25 +45,31 @@ public class MutantCycle {
 
     public Date getDate() {
         return date;
-    }
-
-    public void setDate(Date date) {
+    }    public void setDate(Date date) {
         this.date = date;
     }
 
-    public Mutant getMutants() {
+    public List<Mutant> getMutants() {
         return mutants;
     }
 
-    public void setMutants(Mutant mutants) {
+    public void setMutants(List<Mutant> mutants) {
         this.mutants = mutants;
     }
 
-    public ExecConfig getExecConfigs() {
-        return execConfigs;
+    public ExecConfig getExecConfig() {
+        return execConfig;
     }
 
-    public void setExecConfigs(ExecConfig execConfigs) {
-        this.execConfigs = execConfigs;
+    public void setExecConfig(ExecConfig execConfig) {
+        this.execConfig = execConfig;
+    }
+
+    public Project getProject() {
+        return project;
+    }
+
+    public void setProject(Project project) {
+        this.project = project;
     }
 }

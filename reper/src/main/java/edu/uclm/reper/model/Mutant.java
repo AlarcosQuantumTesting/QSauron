@@ -1,12 +1,49 @@
 package edu.uclm.reper.model;
 
+import jakarta.persistence.*;
+import java.util.List;
+
 /**
  * Mutant entity representing circuit mutations
  */
+@Entity
+@Table(name = "mutants")
 public class Mutant {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private int id;
+
+    @Column(name = "mutant_index")
     private int index;
+    
+    @Column(name = "column_pos")
     private int column;
+    
+    @Column(name = "row_pos")
     private int row;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "original_circuit_id")
+    private QuirkCircuit originalCircuit;
+
+
+
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "quirk_circuit_id")
+    private QuirkCircuit quirkCircuit;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "operator_id")
+    private Operator operator;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "mutant_cycle_id")
+    private MutantCycle mutantCycle;
+
+    @OneToMany(mappedBy = "mutant", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<MutantResult> mutantResults;
 
     // Constructors
     public Mutant() {}
@@ -15,9 +52,15 @@ public class Mutant {
         this.index = index;
         this.column = column;
         this.row = row;
+    }    // Getters and Setters
+    public int getId() {
+        return id;
     }
 
-    // Getters and Setters
+    public void setId(int id) {
+        this.id = id;
+    }
+
     public int getIndex() {
         return index;
     }
@@ -36,9 +79,48 @@ public class Mutant {
 
     public int getRow() {
         return row;
-    }
-
-    public void setRow(int row) {
+    }    public void setRow(int row) {
         this.row = row;
     }
+
+    public QuirkCircuit getQuirkCircuit() {
+        return quirkCircuit;
+    }
+
+    public void setQuirkCircuit(QuirkCircuit quirkCircuit) {
+        this.quirkCircuit = quirkCircuit;
+    }
+
+    public Operator getOperator() {
+        return operator;
+    }
+
+    public void setOperator(Operator operator) {
+        this.operator = operator;
+    }
+
+    public MutantCycle getMutantCycle() {
+        return mutantCycle;
+    }
+
+    public void setMutantCycle(MutantCycle mutantCycle) {
+        this.mutantCycle = mutantCycle;
+    }
+
+    public List<MutantResult> getMutantResults() {
+        return mutantResults;
+    }
+
+    public void setMutantResults(List<MutantResult> mutantResults) {
+        this.mutantResults = mutantResults;
+    }
+
+    public QuirkCircuit getOriginalCircuit() {
+        return originalCircuit;
+    }
+
+    public void setOriginalCircuit(QuirkCircuit originalCircuit) {
+        this.originalCircuit = originalCircuit;
+    }
+
 }

@@ -1,12 +1,24 @@
 package edu.uclm.reper.model;
 
+import jakarta.persistence.*;
+
 /**
  * Grenoble generator for quantum circuits
  */
+@Entity
+@Table(name = "grenoble_generators")
+@DiscriminatorValue("GRENOBLE")
 public class Grenoble extends Generator {
+    @Column(name = "interesting_rows")
     private int interestingRows;
+    
+    @Column(name = "physical_angle")
     private float physicalAngle;
+    
+    @Column(name = "parallel")
     private boolean parallel;
+    
+    @Column(name = "splitted")
     private boolean splitted;
 
     // Constructors
