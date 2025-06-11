@@ -17,7 +17,7 @@ public class Matrix extends Generator {
     @CollectionTable(name = "matrix_position_values", joinColumns = @JoinColumn(name = "matrix_id"))
     @MapKeyColumn(name = "position_key")
     @Column(name = "position_value")
-    private Map<Object, Object> positionValue;
+    private Map<Integer, Integer> positionValue;
 
     // Constructors
     public Matrix() {}
@@ -31,11 +31,11 @@ public class Matrix extends Generator {
         this.interestingRows = interestingRows;
     }
 
-    public Map<Object, Object> getPositionValue() {
+    public Map<Integer, Integer> getPositionValue() {
         return positionValue;
     }
 
-    public void setPositionValue(Map<Object, Object> positionValue) {
+    public void setPositionValue(Map<Integer, Integer> positionValue) {
         this.positionValue = positionValue;
     }
 }

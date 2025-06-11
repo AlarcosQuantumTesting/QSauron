@@ -1,0 +1,60 @@
+***************************
+GRENOBLE
+***************************
+{
+  "type": "GRENOBLE",
+  "interestingRows": 3,
+  "physicalAngle": 45.0,
+  "parallel": true,
+  "splitted": false
+}
+
+***************************
+MATRIX
+***************************
+{
+    "type": "MATRIX",
+    "interestingRows": 5,
+    "positionValue": {
+        "0": 1,
+        "1": 3,
+        "2": 7,
+        "3": 2
+    }
+}
+
+***************************
+GENETIC
+***************************
+{
+    "type": "GENETIC",
+    "hadamards": [true, false, true, false],
+    "minColumns": 2,
+    "maxColumns": 10,
+    "initPopSize": 50,
+    "maxPopSize": 200,
+    "desiredError": 0.001,
+    "gates": ["H", "CNOT", "X", "Z", "RY"] Cambiar a clase?!?!?!?!?!
+}
+
+***************************
+GROVER
+***************************
+{
+    "type": "GROVER",
+    "truePositions": [1, 3, 7, 15]
+}
+
+***************************
+GROVER AND RUDOLPH
+***************************
+{
+    "type": "GROVER_RUDOLPH",
+    "positionValue": {
+        "0": 5,
+        "1": 2,
+        "2": 8,
+        "3": 1,
+        "4": 9
+    }
+}

@@ -1,9 +1,12 @@
 package edu.uclm.reper.services;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
 import edu.uclm.reper.model.Generator;
 import edu.uclm.reper.repository.GeneratorRepository;
 
+@Service
 public class QuCoService {
 
     @Autowired
@@ -19,6 +22,14 @@ public class QuCoService {
 
         return g;
 
+    }
+
+    public void saveCircuit(Generator generator) {
+        if (generator == null) {
+            throw new IllegalArgumentException("Generator or its ID cannot be null");
+        }
+
+        generatorRepository.save(generator);
     }
     
    

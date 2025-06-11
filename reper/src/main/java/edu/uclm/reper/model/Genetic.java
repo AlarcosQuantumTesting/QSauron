@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import java.util.List;
 
 
+
 @Entity
 @Table(name = "genetic_generators")
 @DiscriminatorValue("GENETIC")
@@ -12,7 +13,7 @@ public class Genetic extends Generator {
     @ElementCollection
     @CollectionTable(name = "genetic_hadamards", joinColumns = @JoinColumn(name = "genetic_id"))
     @Column(name = "hadamard")
-    private List<Object> hadamards;
+    private List<Boolean> hadamards;
     
     @Column(name = "min_columns")
     private int minColumns;
@@ -32,16 +33,16 @@ public class Genetic extends Generator {
     @ElementCollection
     @CollectionTable(name = "genetic_gates", joinColumns = @JoinColumn(name = "genetic_id"))
     @Column(name = "gate")
-    private List<Object> gates;
+    private List<String> gates;
 
 
     public Genetic() {}
 
-    public List<Object> getHadamards() {
+    public List<Boolean> getHadamards() {
         return hadamards;
     }
 
-    public void setHadamards(List<Object> hadamards) {
+    public void setHadamards(List<Boolean> hadamards) {
         this.hadamards = hadamards;
     }
 
@@ -85,11 +86,11 @@ public class Genetic extends Generator {
         this.desiredError = desiredError;
     }
 
-    public List<Object> getGates() {
+    public List<String> getGates() {
         return gates;
     }
 
-    public void setGates(List<Object> gates) {
+    public void setGates(List<String> gates) {
         this.gates = gates;
     }
 }

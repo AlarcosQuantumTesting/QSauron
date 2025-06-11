@@ -21,17 +21,23 @@ public class QuCoController {
     private QuCoService qucoService;
 
 
-    @PostMapping("/circuit")
+    @PostMapping("/getcircuit")
     public Generator getCircuit(@RequestBody int id) {
         try{
-
             return qucoService.getCircuit(id);
-
         } catch (Exception e) {
-
             e.printStackTrace();
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        }
+    }
 
+    @PostMapping("/savecircuit")
+    public void saveCircuit(@RequestBody Generator generator) {
+        try {
+            qucoService.saveCircuit(generator);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }
     }
 
