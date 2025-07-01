@@ -17,7 +17,7 @@ import edu.uclm.reper.services.QuCoService;
 @CrossOrigin("*")
 public class QuCoController {
     
-     @Autowired
+    @Autowired
     private QuCoService qucoService;
 
 

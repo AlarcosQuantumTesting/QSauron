@@ -35,8 +35,7 @@ public class QProgram {
     @Column(name = "output_qubits")
     private int[] outputQubits;
 
-    // Constructors
-    public QProgram() {}    // Getters and Setters
+    public QProgram() {}   
     public int getId() {
         return id;
     }

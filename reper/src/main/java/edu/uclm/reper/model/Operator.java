@@ -2,9 +2,7 @@ package edu.uclm.reper.model;
 
 import jakarta.persistence.*;
 
-/**
- * Operator entity representing quantum operators
- */
+
 @Entity
 @Table(name = "operators")
 public class Operator {
@@ -16,8 +14,8 @@ public class Operator {
     @Column(name = "name")
     private String name;
     
-    @Column(name = "type")
-    private String type;
+    @Column(name = "enabled")
+    private boolean enabled;
     
     @Column(name = "description")
     private String description;
@@ -25,9 +23,9 @@ public class Operator {
     // Constructors
     public Operator() {}
 
-    public Operator(String name, String type, String description) {
+    public Operator(String name, boolean enabled, String description) {
         this.name = name;
-        this.type = type;
+        this.enabled = enabled;
         this.description = description;
     }
 
@@ -47,15 +45,6 @@ public class Operator {
     public void setName(String name) {
         this.name = name;
     }
-
-    public String getType() {
-        return type;
-    }
-
-    public void setType(String type) {
-        this.type = type;
-    }
-
     public String getDescription() {
         return description;
     }
@@ -63,4 +52,12 @@ public class Operator {
     public void setDescription(String description) {
         this.description = description;
     }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
 }

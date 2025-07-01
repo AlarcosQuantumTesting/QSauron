@@ -34,8 +34,10 @@ GENETIC
     "initPopSize": 50,
     "maxPopSize": 200,
     "desiredError": 0.001,
-    "gates": ["H", "CNOT", "X", "Z", "RY"] Cambiar a clase?!?!?!?!?!
+    "gates": ["H", "CNOT", "X", "Z", "RY"] 
 }
+
+Cambiar a clase?!?!?!?!?!
 
 ***************************
 GROVER
