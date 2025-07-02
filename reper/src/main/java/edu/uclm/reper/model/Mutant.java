@@ -27,9 +27,6 @@ public class Mutant {
     @JoinColumn(name = "original_circuit_id")
     private QuirkCircuit originalCircuit;
 
-
-
-
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "quirk_circuit_id")
     private QuirkCircuit quirkCircuit;

@@ -18,8 +18,8 @@ public class KillingMatrix {
     @JoinColumn(name = "killing_matrix_id")
     private List<MutantResult> mutantResults;
 
-    // Constructors
-    public KillingMatrix() {}    // Getters and Setters
+    public KillingMatrix() {} 
+    
     public int getId() {
         return id;
     }

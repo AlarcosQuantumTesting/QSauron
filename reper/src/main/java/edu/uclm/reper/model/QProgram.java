@@ -1,5 +1,7 @@
 package edu.uclm.reper.model;
 
+import java.util.List;
+
 import jakarta.persistence.*;
 
 /**
@@ -34,6 +36,13 @@ public class QProgram {
     
     @Column(name = "output_qubits")
     private int[] outputQubits;
+
+    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<QuirkCircuit> quirkCircuits;
+
+    @OneToOne(cascade = CascadeType.ALL, optional = true)
+    @JoinColumn(name = "integrated_circuit_id", nullable = true)
+    private QuirkCircuit integratedCircuit;
 
     public QProgram() {}   
     public int getId() {

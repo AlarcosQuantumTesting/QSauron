@@ -3,9 +3,6 @@ package edu.uclm.reper.model;
 import jakarta.persistence.*;
 import java.util.List;
 
-/**
- * TestSuite entity representing a collection of test cases
- */
 @Entity
 @Table(name = "test_suites")
 public class TestSuite {

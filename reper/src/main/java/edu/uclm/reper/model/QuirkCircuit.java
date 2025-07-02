@@ -11,7 +11,7 @@ public class QuirkCircuit {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
-    private Long id;
+    private int id;
 
     @Column(name = "qbits")
     private int qbits;
@@ -25,7 +25,7 @@ public class QuirkCircuit {
     @Column(name = "code", columnDefinition = "TEXT")
     private String code;
 
-    // Constructors
+    
     public QuirkCircuit() {}
 
     public QuirkCircuit(int qbits, int[] inputQubits, int[] outputQubits, String code) {
@@ -33,12 +33,13 @@ public class QuirkCircuit {
         this.inputQubits = inputQubits;
         this.outputQubits = outputQubits;
         this.code = code;
-    }    // Getters and Setters
-    public Long getId() {
+    }
+
+    public int getId() {
         return id;
     }
 
-    public void setId(Long id) {
+    public void setId(int id) {
         this.id = id;
     }
 
