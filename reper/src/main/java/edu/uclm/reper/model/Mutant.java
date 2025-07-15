@@ -3,9 +3,6 @@ package edu.uclm.reper.model;
 import jakarta.persistence.*;
 import java.util.List;
 
-/**
- * Mutant entity representing circuit mutations
- */
 @Entity
 @Table(name = "mutants")
 public class Mutant {
@@ -23,13 +20,9 @@ public class Mutant {
     @Column(name = "row_pos")
     private int row;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "original_circuit_id")
-    private QuirkCircuit originalCircuit;
-
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "quirk_circuit_id")
-    private QuirkCircuit quirkCircuit;
+    private QCircuit quirkCircuit;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "operator_id")
@@ -49,7 +42,9 @@ public class Mutant {
         this.index = index;
         this.column = column;
         this.row = row;
-    }    // Getters and Setters
+    }
+    
+    
     public int getId() {
         return id;
     }
@@ -80,11 +75,11 @@ public class Mutant {
         this.row = row;
     }
 
-    public QuirkCircuit getQuirkCircuit() {
+    public QCircuit getQuirkCircuit() {
         return quirkCircuit;
     }
 
-    public void setQuirkCircuit(QuirkCircuit quirkCircuit) {
+    public void setQuirkCircuit(QCircuit quirkCircuit) {
         this.quirkCircuit = quirkCircuit;
     }
 
@@ -112,12 +107,5 @@ public class Mutant {
         this.mutantResults = mutantResults;
     }
 
-    public QuirkCircuit getOriginalCircuit() {
-        return originalCircuit;
-    }
-
-    public void setOriginalCircuit(QuirkCircuit originalCircuit) {
-        this.originalCircuit = originalCircuit;
-    }
 
 }

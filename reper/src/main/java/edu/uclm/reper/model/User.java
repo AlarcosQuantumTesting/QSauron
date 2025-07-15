@@ -3,9 +3,7 @@ package edu.uclm.reper.model;
 import jakarta.persistence.*;
 import java.util.List;
 
-/**
- * User entity representing system users
- */
+
 @Entity
 @Table(name = "users")
 public class User {
@@ -23,7 +21,7 @@ public class User {
         this.id = id;
     }
 
-    // Getters and Setters
+
     public String getId() {
         return id;
     }    public void setId(String id) {

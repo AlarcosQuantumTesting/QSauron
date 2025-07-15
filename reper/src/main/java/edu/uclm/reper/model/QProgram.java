@@ -18,15 +18,16 @@ public class QProgram {
     @Column(name = "name")
     private String name;
     
-    @Column(name = "qiskit_code", columnDefinition = "TEXT")
-    private String qiskitCode;
+    @OneToMany( cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JoinColumn(name = "q_program_id")
+    private List<QCode> QCodes;
     
     @Column(name = "qubits")
     private int qubits;
     
-    @OneToOne(cascade = CascadeType.ALL)
-    @JoinColumn(name = "expression_id")
-    private Expression expressions;
+    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JoinColumn(name = "q_program_id")
+    private List<Expression> expressions;
     
     @Column(name = "shots")
     private int shots;
@@ -37,14 +38,32 @@ public class QProgram {
     @Column(name = "output_qubits")
     private int[] outputQubits;
 
-    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<QuirkCircuit> quirkCircuits;
+    @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JoinColumn(name = "circuit_id")
+    private QCircuit quirkCircuit;
 
-    @OneToOne(cascade = CascadeType.ALL, optional = true)
-    @JoinColumn(name = "integrated_circuit_id", nullable = true)
-    private QuirkCircuit integratedCircuit;
+    @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JoinColumn(name = "generator_id")
+    private Generator generator;
 
-    public QProgram() {}   
+
+
+
+    public QProgram() {}
+
+    public List<QCode> getQCodes() {
+        return QCodes;
+    }
+    public void setQCodes(List<QCode> qCodes) {
+        QCodes = qCodes;
+    }
+    public QCircuit getQuirkCircuit() {
+        return quirkCircuit;
+    }
+    public void setQuirkCircuit(QCircuit quirkCircuit) {
+        this.quirkCircuit = quirkCircuit;
+    }
+
     public int getId() {
         return id;
     }
@@ -61,13 +80,7 @@ public class QProgram {
         this.name = name;
     }
 
-    public String getQiskitCode() {
-        return qiskitCode;
-    }
 
-    public void setQiskitCode(String qiskitCode) {
-        this.qiskitCode = qiskitCode;
-    }
 
     public int getQubits() {
         return qubits;
@@ -77,11 +90,11 @@ public class QProgram {
         this.qubits = qubits;
     }
 
-    public Expression getExpressions() {
+    public List<Expression> getExpressions() {
         return expressions;
     }
 
-    public void setExpressions(Expression expressions) {
+    public void setExpressions(List<Expression> expressions) {
         this.expressions = expressions;
     }
 
@@ -107,5 +120,13 @@ public class QProgram {
 
     public void setOutputQubits(int[] outputQubits) {
         this.outputQubits = outputQubits;
+    }
+
+    public Generator getGenerator() {
+        return generator;
+    }
+
+    public void setGenerator(Generator generator) {
+        this.generator = generator;
     }
 }
