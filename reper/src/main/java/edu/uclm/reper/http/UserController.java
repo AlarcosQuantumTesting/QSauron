@@ -30,17 +30,27 @@ public class UserController {
 	public void create(@RequestBody Map<String,String> user) {
 		
 		Optional<User> existingUser = this.userRepository.findById(user.get("email"));
-    		if (existingUser.isPresent())
+    	
+		if (existingUser.isPresent()){
         		throw new ResponseStatusException(HttpStatus.CONFLICT, user.get("email") + " already exists");
-				
-    	this.userService.create(user);
+		}
+		
+		try {
+    		this.userService.create(user);
+		} catch (Exception e) {
+			throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error creating user: " + e.getMessage(), e);
+		}
 	}
 	
 	@PostMapping("/login")
-	public String login(@RequestBody User user) {
-		String token = this.userService.login(user);
-		if (token==null)
+	public String login(@RequestBody Map<String,String> user) {
+		try{
+			String token = this.userService.login(user);
+			return token;
+			
+		}catch (Exception e) {
 			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid credentials");
-		return token;
+		}
+		
 	}
 }

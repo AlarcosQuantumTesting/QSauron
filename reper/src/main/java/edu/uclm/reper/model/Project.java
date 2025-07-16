@@ -17,7 +17,7 @@ public class Project {
     @Column(name = "name")
     private String name;
     
-    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL)
     private List<MutantCycle> mutantCycles;
     
     @OneToOne(cascade = CascadeType.ALL)

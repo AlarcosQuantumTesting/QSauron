@@ -21,6 +21,7 @@ public class ProjectController {
      * POST /api/projects/create
      * Body: {"projectName": "Mi Proyecto", "userId": "user123"}
      */
+    
     @PostMapping("/create")
     public ResponseEntity<?> createProject(@RequestBody Map<String,String> request) {
         try {

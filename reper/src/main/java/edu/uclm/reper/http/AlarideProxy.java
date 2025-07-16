@@ -1,50 +1,70 @@
 package edu.uclm.reper.http;
 
-import java.io.IOException;
 import java.util.Map;
+import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.BodyInserters;
+import reactor.core.publisher.Mono;
 
-import org.apache.hc.client5.http.classic.methods.HttpGet;
-import org.apache.hc.client5.http.classic.methods.HttpPost;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
-import org.apache.hc.client5.http.impl.classic.HttpClients;
-import org.apache.hc.core5.http.io.entity.StringEntity;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
+@Service
 public class AlarideProxy {
     
-    private String urlAlaride = "http://localhost:80/users/";
+    private final WebClient webClient;
+    private String urlAlaride = "http://localhost:80/";
 
-    public void create(String email, String pwd) throws Exception{
+    public AlarideProxy() {
+        this.webClient = WebClient.builder()
+            .baseUrl(urlAlaride)
+            .build();
+    }
+
+    public void create(String email, String pwd) throws Exception {
         Map<String, String> user = Map.of("email", email, "pwd", pwd);
 
-        HttpPost httpPost = new HttpPost(urlAlaride + "create");
-
-        ObjectMapper mapper = new ObjectMapper();
-        String jsonUser;
         try {
-            jsonUser = mapper.writeValueAsString(user);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("Error converting user to JSON", e);
-        }
+            webClient.post()
+                .uri("users/create")
+                .header("Content-Type", "application/json")
+                .body(BodyInserters.fromValue(user))
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
 
-        httpPost.setEntity(new StringEntity(jsonUser));
-        httpPost.setHeader("Content-Type", "application/json");
-        
-         try (CloseableHttpClient httpclient = HttpClients.createDefault();
-             CloseableHttpResponse response = httpclient.execute(httpPost)) {
-   
-            int code = response.getCode();
-            if (code != 200) {
-                throw new RuntimeException("El servicio solicitado requiere pago");
-            }
-        } catch (IOException e) {
-            throw new IOException("Error executing HTTP request", e);
+            setUser(email);
+        } catch (Exception e) {
+            throw new Exception("Error creating user: " + e.getMessage(), e);
         }
     }
-    
 
+    private void setUser(String email) throws Exception {
+        String systemName = "QPorjectsPrueba";
+        String privateKey = "pri_86f314b2-6b48-42b1-aa2e-6f8f05eb6cde";
+        Map<String, String> user = Map.of("email", email, "systemName", systemName, "privateKey", privateKey);
 
+        try {
+            webClient.post()
+                .uri("systems/setUser")
+                .header("Content-Type", "application/json")
+                .body(BodyInserters.fromValue(user))
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+        } catch (Exception e) {
+            throw new Exception("Error setting user: " + e.getMessage(), e);
+        }
+    }
+
+    public String login(Map<String, String> user) throws Exception {
+        try {
+            return webClient.post()
+                .uri("users/login")
+                .header("Content-Type", "application/json")
+                .body(BodyInserters.fromValue(user))
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+        } catch (Exception e) {
+            throw new Exception("Error during login: " + e.getMessage(), e);
+        }
+    }
 }
