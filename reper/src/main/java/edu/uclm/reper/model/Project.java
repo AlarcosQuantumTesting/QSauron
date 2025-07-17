@@ -3,6 +3,8 @@ package edu.uclm.reper.model;
 import jakarta.persistence.*;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 /**
  * Project entity representing quantum mutation testing projects
  */
@@ -34,6 +36,7 @@ public class Project {
         joinColumns = @JoinColumn(name = "project_id"),
         inverseJoinColumns = @JoinColumn(name = "user_id")
     )
+    @JsonIgnoreProperties({"projects"})
     private List<User> users;
 
     // Constructors

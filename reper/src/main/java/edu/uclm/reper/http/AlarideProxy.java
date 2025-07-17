@@ -67,4 +67,18 @@ public class AlarideProxy {
             throw new Exception("Error during login: " + e.getMessage(), e);
         }
     }
+
+    public String validateToken(Map <String,String> user) throws Exception {
+        try {
+            return webClient.post()
+                .uri("tokens/validate")
+                .header("Content-Type", "application/json")
+                .body(BodyInserters.fromValue(user))
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+        } catch (Exception e) {
+            throw new Exception("Error validating token: " + e.getMessage(), e);
+        }
+    }
 }

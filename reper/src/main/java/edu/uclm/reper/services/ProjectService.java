@@ -1,5 +1,6 @@
 package edu.uclm.reper.services;
 
+import edu.uclm.reper.http.AlarideProxy;
 import edu.uclm.reper.model.Project;
 import edu.uclm.reper.model.User;
 import edu.uclm.reper.repository.ProjectRepository;
@@ -9,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -19,6 +21,9 @@ public class ProjectService {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private AlarideProxy alarideProxy;
 
 
     // Crea un nuevo proyecto y lo asocia con un usuario
@@ -71,7 +76,14 @@ public class ProjectService {
     
 
     //Obtiene todos los proyectos de un usuario
-    public List<Project> getProjectsByUser(String userId) {
+    public List<Project> getProjectsByUser(Map<String, String> request) throws Exception {
+
+        try {
+            alarideProxy.validateToken(request);
+        } catch (Exception e) {
+            throw new Exception("Error validating token: " + e.getMessage(), e);
+        }
+        String userId = request.get("email");
         return projectRepository.findProjectsByUserId(userId);
     }
 

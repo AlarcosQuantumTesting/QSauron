@@ -9,8 +9,9 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
+@CrossOrigin(origins = "*")
 @RestController
-@RequestMapping("/api/projects")
+@RequestMapping("/projects")
 public class ProjectController {
 
     @Autowired
@@ -51,10 +52,11 @@ public class ProjectController {
      * Obtiene todos los proyectos de un usuario
      * GET /api/projects/user/{userId}
      */
-    @GetMapping("/user/{userId}")
-    public ResponseEntity<?> getProjectsByUser(@PathVariable String userId) {
+    @PostMapping("/getAllByUser")
+    public ResponseEntity<?> getProjectsByUser(@RequestBody Map<String,String> request) {
+        
         try {
-            List<Project> projects = projectService.getProjectsByUser(userId);
+            List<Project> projects = projectService.getProjectsByUser(request);
             return ResponseEntity.ok(projects);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
