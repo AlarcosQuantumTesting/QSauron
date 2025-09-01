@@ -12,8 +12,8 @@ import java.util.List;
  * Repository interface for Project entity operations
  */
 @Repository
-public interface ProjectRepository extends JpaRepository<Project, Long> {
-    
+public interface ProjectRepository extends JpaRepository<Project, String> {
+
     /**
      * Find projects by name containing the given string (case insensitive)
      */

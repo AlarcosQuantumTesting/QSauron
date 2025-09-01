@@ -3,6 +3,9 @@ package edu.uclm.reper.model;
 import jakarta.persistence.*;
 import java.util.Date;
 import java.util.List;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.fasterxml.jackson.annotation.JsonBackReference;
 
 /**
  * MutantCycle entity representing a cycle of mutant execution
@@ -20,13 +23,16 @@ public class MutantCycle {
     private Date date;
     
     @OneToMany(mappedBy = "mutantCycle", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonManagedReference("mutantCycle-mutants")
     private List<Mutant> mutants;
     
     @OneToOne(mappedBy = "mutantCycle", cascade = CascadeType.ALL)
+    @JsonManagedReference("mutantCycle-execConfig")
     private ExecConfig execConfig;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id")
+    @JsonBackReference("project-mutantCycles")
     private Project project;
 
     // Constructors

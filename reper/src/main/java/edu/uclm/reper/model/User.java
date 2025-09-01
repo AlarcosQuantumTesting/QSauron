@@ -2,6 +2,7 @@ package edu.uclm.reper.model;
 
 import jakarta.persistence.*;
 import java.util.List;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 
 @Entity
@@ -12,6 +13,7 @@ public class User {
     private String id;
 
     @ManyToMany(mappedBy = "users", fetch = FetchType.LAZY)
+    @JsonIgnoreProperties({"users", "mutantCycles", "qProgram", "testSuite"})
     private List<Project> projects;
 
     // Constructors

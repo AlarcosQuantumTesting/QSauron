@@ -2,6 +2,7 @@ package edu.uclm.reper.model;
 
 import jakarta.persistence.*;
 import java.util.Date;
+import com.fasterxml.jackson.annotation.JsonBackReference;
 
 
 @Entity
@@ -28,6 +29,7 @@ public class ExecConfig {
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "mutant_cycle_id")
+    @JsonBackReference("mutantCycle-execConfig")
     private MutantCycle mutantCycle;
 
     // Constructors

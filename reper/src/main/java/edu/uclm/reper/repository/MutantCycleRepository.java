@@ -18,7 +18,7 @@ public interface MutantCycleRepository extends JpaRepository<MutantCycle, Long> 
     /**
      * Find mutant cycles by project ID
      */
-    List<MutantCycle> findByProjectId(Long projectId);
+    List<MutantCycle> findByProjectId(String projectId);
     
     /**
      * Find mutant cycles by date
@@ -39,18 +39,18 @@ public interface MutantCycleRepository extends JpaRepository<MutantCycle, Long> 
     /**
      * Find mutant cycles for a project ordered by date
      */
-    List<MutantCycle> findByProjectIdOrderByDateDesc(Long projectId);
+    List<MutantCycle> findByProjectIdOrderByDateDesc(String projectId);
     
     /**
      * Find the latest mutant cycle for a project
      */
     @Query("SELECT mc FROM MutantCycle mc WHERE mc.project.id = :projectId ORDER BY mc.date DESC")
-    List<MutantCycle> findLatestByProjectId(@Param("projectId") Long projectId);
+    List<MutantCycle> findLatestByProjectId(@Param("projectId") String projectId);
     
     /**
      * Count mutant cycles by project
      */
-    long countByProjectId(Long projectId);
+    long countByProjectId(String projectId);
     
     /**
      * Find mutant cycles with mutants

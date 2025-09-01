@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 
 /**
  * Project entity representing quantum mutation testing projects
@@ -12,14 +13,14 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 @Table(name = "projects")
 public class Project {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
-    private Long id;
+    private String id;
     
     @Column(name = "name")
     private String name;
     
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL)
+    @JsonManagedReference("project-mutantCycles")
     private List<MutantCycle> mutantCycles;
     
     @OneToOne(cascade = CascadeType.ALL)
@@ -45,11 +46,11 @@ public class Project {
     public Project(String name) {
         this.name = name;
     }    // Getters and Setters
-    public Long getId() {
+    public String getId() {
         return id;
     }
 
-    public void setId(Long id) {
+    public void setId(String id) {
         this.id = id;
     }
 

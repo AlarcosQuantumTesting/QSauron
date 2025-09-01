@@ -2,6 +2,7 @@ package edu.uclm.reper.model;
 
 import jakarta.persistence.*;
 import java.util.List;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 
 @Entity
 @Table(name = "test_suites")
@@ -12,6 +13,7 @@ public class TestSuite {
     private Long id;
 
     @OneToMany(mappedBy = "testSuite", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonManagedReference("testSuite-testCases")
     private List<TestCase> testCases;
 
     // Constructors

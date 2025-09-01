@@ -1,6 +1,10 @@
 package edu.uclm.reper.model;
 
+import java.util.Arrays;
 import java.util.List;
+
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.persistence.*;
 
@@ -35,11 +39,13 @@ public class QProgram {
     @Column(name = "input_qubits")
     private int[] inputQubits;
     
+    
     @Column(name = "output_qubits")
     private int[] outputQubits;
 
     @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JoinColumn(name = "circuit_id")
+    @JsonProperty("qCircuit")
     private QCircuit quirkCircuit;
 
     @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
@@ -129,4 +135,21 @@ public class QProgram {
     public void setGenerator(Generator generator) {
         this.generator = generator;
     }
+
+    @JsonSetter("inputQubits")
+    public void setInputQubits(String inputQubits) {
+        this.inputQubits = Arrays.stream(inputQubits.split(","))
+                                 .mapToInt(Integer::parseInt)
+                                 .toArray();
+    }
+
+    @JsonSetter("outputQubits")
+    public void setOutputQubits(String str) {
+
+        this.outputQubits = Arrays.stream(str.split(","))
+                                  .map(String::trim)
+                                  .mapToInt(Integer::parseInt)
+                                  .toArray();
+    }
+    
 }

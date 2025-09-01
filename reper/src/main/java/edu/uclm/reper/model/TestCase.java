@@ -1,6 +1,7 @@
 package edu.uclm.reper.model;
 
 import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonBackReference;
 
 /**
  * TestCase entity representing individual test cases
@@ -18,6 +19,7 @@ public class TestCase {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "test_suite_id")
+    @JsonBackReference("testSuite-testCases")
     private TestSuite testSuite;
 
     // Constructors

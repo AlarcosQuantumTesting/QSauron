@@ -2,6 +2,9 @@ package edu.uclm.reper.model;
 
 import jakarta.persistence.*;
 import java.util.List;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 @Entity
 @Table(name = "mutants")
@@ -12,16 +15,20 @@ public class Mutant {
     private int id;
 
     @Column(name = "mutant_index")
+    @JsonProperty("mutantIndex")
     private int index;
     
     @Column(name = "column_pos")
+    @JsonProperty("mutatedColumn")
     private int column;
     
     @Column(name = "row_pos")
+    @JsonProperty("mutatedRow")
     private int row;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "quirk_circuit_id")
+    @JsonProperty("circuit")
     private QCircuit quirkCircuit;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -30,9 +37,11 @@ public class Mutant {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "mutant_cycle_id")
+    @JsonBackReference("mutantCycle-mutants")
     private MutantCycle mutantCycle;
 
     @OneToMany(mappedBy = "mutant", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonManagedReference("mutant-results")
     private List<MutantResult> mutantResults;
 
     // Constructors

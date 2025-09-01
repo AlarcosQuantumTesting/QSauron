@@ -1,6 +1,7 @@
 package edu.uclm.reper.model;
 
 import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonBackReference;
 
 /**
  * MutantResult entity representing the result of a mutant execution
@@ -19,10 +20,12 @@ public class MutantResult {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "mutant_id")
+    @JsonBackReference("mutant-results")
     private Mutant mutant;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "test_case_id")
+    @JsonBackReference("testCase-mutantResults")
     private TestCase testCase;
 
     // Constructors

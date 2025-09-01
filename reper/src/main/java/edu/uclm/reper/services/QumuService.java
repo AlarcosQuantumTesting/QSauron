@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import edu.uclm.reper.model.OperatorType;
+import edu.uclm.reper.model.Project;
 import edu.uclm.reper.repository.OperatorTypeRepository;
 
 import java.util.ArrayList;
@@ -19,6 +20,11 @@ OperatorTypeRepository operatorTypeRepository;
 public List<OperatorType> getOperatorsByFamily(){
     List<OperatorType> operators = operatorTypeRepository.findAll();
     return operators;
+}
+
+public void saveProject(Project project) {
+    // TODO Auto-generated method stub
+    throw new UnsupportedOperationException("Unimplemented method 'saveProject'");
 }
 
 }

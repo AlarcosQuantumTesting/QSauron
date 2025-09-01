@@ -1,5 +1,6 @@
 package edu.uclm.reper.http;
 
+import edu.uclm.reper.model.MutantCycle;
 import edu.uclm.reper.model.Project;
 import edu.uclm.reper.services.ProjectService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,13 +37,13 @@ public class ProjectController {
 
     /**
      * Asocia un proyecto existente con un usuario
-     * POST /api/projects/{projectId}/associate/{userId}
+     * POST /api/projects/associate/{projectId}{userId}
      */
-    @PostMapping("/{projectId}/associate/{userId}")
-    public ResponseEntity<?> associateProjectWithUser(@PathVariable Long projectId, @PathVariable String userId) {
+    @PostMapping("/associate")
+    public ResponseEntity<?> associateProjectWithUser(@RequestBody Map<String, String> request) {
         try {
-            Project project = projectService.associateProjectWithUser(projectId, userId);
-            return ResponseEntity.ok(project);
+            projectService.associateProjectWithUser(request.get("projectId"), request.get("userId"));
+            return ResponseEntity.ok().build();
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
@@ -63,18 +64,34 @@ public class ProjectController {
         }
     }
 
+
     /**
-     * Remueve un usuario de un proyecto
-     * DELETE /api/projects/{projectId}/user/{userId}
+     * Guarda/actualiza los datos de un proyecto
+     * PUT /api/projects/save
      */
-    @DeleteMapping("/{projectId}/user/{userId}")
-    public ResponseEntity<?> removeUserFromProject(@PathVariable Long projectId, @PathVariable String userId) {
+    @PutMapping(value = "/save", consumes = "application/json", produces = "application/json")
+    public ResponseEntity<?> saveProject(@RequestBody Project project) {
         try {
-            Project project = projectService.removeUserFromProject(projectId, userId);
-            return ResponseEntity.ok(project);
+            Project savedProject = projectService.saveProject(project);
+            return ResponseEntity.ok(savedProject);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
     }
+    
+    /**
+     * Guarda/actualiza los datos de un proyecto (POST también)
+     * POST /api/projects/save
+     */
+    @PostMapping(value = "/save", consumes = "application/json", produces = "application/json")
+    public ResponseEntity<?> saveProjectPost(@RequestBody Project project) {
+        try {
+            Project savedProject = projectService.saveProject(project);
+            return ResponseEntity.ok(savedProject);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+        }
+    }
+    
 
 }

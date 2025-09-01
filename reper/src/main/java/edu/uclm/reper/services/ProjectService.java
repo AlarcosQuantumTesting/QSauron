@@ -1,8 +1,10 @@
 package edu.uclm.reper.services;
 
 import edu.uclm.reper.http.AlarideProxy;
+import edu.uclm.reper.model.MutantCycle;
 import edu.uclm.reper.model.Project;
 import edu.uclm.reper.model.User;
+import edu.uclm.reper.repository.MutantCycleRepository;
 import edu.uclm.reper.repository.ProjectRepository;
 import edu.uclm.reper.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +26,9 @@ public class ProjectService {
 
     @Autowired
     private AlarideProxy alarideProxy;
+
+     @Autowired
+     private MutantCycleRepository mutantCycleRepository;
 
 
     // Crea un nuevo proyecto y lo asocia con un usuario
@@ -47,7 +52,7 @@ public class ProjectService {
     }
 
     //Asocia un proyecto existente con un usuario
-    public Project associateProjectWithUser(Long projectId, String userId) {
+    public void associateProjectWithUser(String projectId, String userId) {
         
         Optional<Project> projectOpt = projectRepository.findById(projectId);
         if (projectOpt.isEmpty()) {
@@ -68,10 +73,9 @@ public class ProjectService {
 
         if (!project.getUsers().contains(user)) {
             project.getUsers().add(user);
-            return projectRepository.save(project);
+            projectRepository.save(project);
         }
 
-        return project;
     }
     
 
@@ -88,8 +92,8 @@ public class ProjectService {
     }
 
     
-    //Remueve la asociación entre un proyecto y un usuario
-    public Project removeUserFromProject(Long projectId, String userId) {
+    /*//Remueve la asociación entre un proyecto y un usuario
+    public Project removeUserFromProject(String projectId, String userId) {
         Optional<Project> projectOpt = projectRepository.findById(projectId);
         Optional<User> userOpt = userRepository.findById(userId);
 
@@ -109,6 +113,35 @@ public class ProjectService {
         }
 
         return project;
+    }*/
+
+
+    public Project saveProject(Project projectData) {
+        projectRepository.save(projectData);
+        if(projectData.getMutantCycles() != null && !projectData.getMutantCycles().isEmpty()){
+            List<MutantCycle> mtnc = projectData.getMutantCycles();
+            saveMutantCycles(projectData, mtnc);
+        }
+        
+        return projectData;
+    
     }
+
+    private void saveMutantCycles(Project projectData, List<MutantCycle> mutantCycle) {
+       
+            for (MutantCycle cycle : mutantCycle) {
+                cycle.setProject(projectData);
+                mutantCycleRepository.save(cycle);
+                saveMutants(cycle);
+            }
+             
+    }
+
+    private void saveMutants(MutantCycle mutantCycle) {
+    
+        mutantCycle.getMutants().forEach(mutant -> mutant.setMutantCycle(mutantCycle));
+    }
+
+   
 
 }
