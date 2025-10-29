@@ -1,14 +1,22 @@
 package edu.uclm.reper.http;
 
-import edu.uclm.reper.model.MutantCycle;
-import edu.uclm.reper.model.Project;
-import edu.uclm.reper.services.ProjectService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
 import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import edu.uclm.reper.model.Project;
+import edu.uclm.reper.model.User;
+import edu.uclm.reper.services.ProjectService;
 
 @CrossOrigin(origins = "*")
 @RestController
@@ -37,12 +45,12 @@ public class ProjectController {
 
     /**
      * Asocia un proyecto existente con un usuario
-     * POST /api/projects/associate/{projectId}{userId}
+     * POST /api/projects/associate
      */
     @PostMapping("/associate")
     public ResponseEntity<?> associateProjectWithUser(@RequestBody Map<String, String> request) {
         try {
-            projectService.associateProjectWithUser(request.get("projectId"), request.get("userId"));
+            projectService.associateProjectWithUser(request.get("projectID"), request.get("userID"));
             return ResponseEntity.ok().build();
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
@@ -69,29 +77,24 @@ public class ProjectController {
      * Guarda/actualiza los datos de un proyecto
      * PUT /api/projects/save
      */
-    @PutMapping(value = "/save", consumes = "application/json", produces = "application/json")
-    public ResponseEntity<?> saveProject(@RequestBody Project project) {
+
+    @PutMapping("/save")
+    public ResponseEntity<?> saveProject(@RequestBody Map<String, Object> request) {
         try {
-            Project savedProject = projectService.saveProject(project);
+
+            ObjectMapper mapper = new ObjectMapper();
+            Project circuit = mapper.convertValue(request.get("circuit"), Project.class);
+            User user = mapper.convertValue(request.get("user"), User.class);
+
+            Project savedProject = projectService.saveProject(circuit);
+            projectService.associateProjectWithUser(savedProject.getId(), user.getId());
             return ResponseEntity.ok(savedProject);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
     }
     
-    /**
-     * Guarda/actualiza los datos de un proyecto (POST también)
-     * POST /api/projects/save
-     */
-    @PostMapping(value = "/save", consumes = "application/json", produces = "application/json")
-    public ResponseEntity<?> saveProjectPost(@RequestBody Project project) {
-        try {
-            Project savedProject = projectService.saveProject(project);
-            return ResponseEntity.ok(savedProject);
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
-        }
-    }
+    
     
 
 }

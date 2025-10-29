@@ -1,16 +1,28 @@
 package edu.uclm.reper.model;
 
-import jakarta.persistence.*;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
+
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
+import jakarta.persistence.Table;
 
 /**
  * Project entity representing quantum mutation testing projects
  */
 @Entity
 @Table(name = "projects")
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class Project {
     @Id
     @Column(name = "id")
@@ -19,15 +31,15 @@ public class Project {
     @Column(name = "name")
     private String name;
     
-    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonManagedReference("project-mutantCycles")
     private List<MutantCycle> mutantCycles;
     
-    @OneToOne(cascade = CascadeType.ALL)
+    @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JoinColumn(name = "test_suite_id")
     private TestSuite testSuite;    
     
-    @OneToOne(cascade = CascadeType.ALL)
+    @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JoinColumn(name = "q_program_id")
     private QProgram qProgram;
 

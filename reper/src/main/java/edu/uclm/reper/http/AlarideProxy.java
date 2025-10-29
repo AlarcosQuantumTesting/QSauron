@@ -1,10 +1,10 @@
 package edu.uclm.reper.http;
 
 import java.util.Map;
+
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.BodyInserters;
-import reactor.core.publisher.Mono;
+import org.springframework.web.reactive.function.client.WebClient;
 
 @Service
 public class AlarideProxy {
@@ -81,4 +81,20 @@ public class AlarideProxy {
             throw new Exception("Error validating token: " + e.getMessage(), e);
         }
     }
+
+    public String getUserId(Map <String,String> token) throws Exception {
+        try {
+            return webClient.post()
+                .uri("tokens/getUser")
+                .header("Content-Type", "application/json")
+                .body(BodyInserters.fromValue(token))
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+        } catch (Exception e) {
+            throw new Exception("Error getting user ID: " + e.getMessage(), e);
+        }
+    }
+
+    
 }

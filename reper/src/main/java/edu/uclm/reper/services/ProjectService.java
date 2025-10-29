@@ -1,21 +1,29 @@
 package edu.uclm.reper.services;
 
-import edu.uclm.reper.http.AlarideProxy;
-import edu.uclm.reper.model.MutantCycle;
-import edu.uclm.reper.model.Project;
-import edu.uclm.reper.model.User;
-import edu.uclm.reper.repository.MutantCycleRepository;
-import edu.uclm.reper.repository.ProjectRepository;
-import edu.uclm.reper.repository.UserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import edu.uclm.reper.http.AlarideProxy;
+import edu.uclm.reper.model.Mutant;
+import edu.uclm.reper.model.MutantCycle;
+import edu.uclm.reper.model.Operator;
+import edu.uclm.reper.model.Project;
+import edu.uclm.reper.model.QProgram;
+import edu.uclm.reper.model.User;
+import edu.uclm.reper.repository.MutantCycleRepository;
+import edu.uclm.reper.repository.OperatorRepository;
+import edu.uclm.reper.repository.ProjectRepository;
+import edu.uclm.reper.repository.QProgramRepository;
+import edu.uclm.reper.repository.UserRepository;
+import jakarta.transaction.Transactional;
+
 @Service
+@Transactional
 public class ProjectService {
 
     @Autowired
@@ -27,8 +35,14 @@ public class ProjectService {
     @Autowired
     private AlarideProxy alarideProxy;
 
-     @Autowired
-     private MutantCycleRepository mutantCycleRepository;
+    @Autowired
+    private MutantCycleRepository mutantCycleRepository;
+
+    @Autowired
+    private QProgramRepository qProgramRepository;
+
+    @Autowired
+    private OperatorRepository operatorRepository;
 
 
     // Crea un nuevo proyecto y lo asocia con un usuario
@@ -88,7 +102,11 @@ public class ProjectService {
             throw new Exception("Error validating token: " + e.getMessage(), e);
         }
         String userId = request.get("email");
-        return projectRepository.findProjectsByUserId(userId);
+        List<Project> projects = projectRepository.findProjectsByUserId(userId);
+        for (Project project : projects) {
+            project.getMutantCycles(); // Evita la serialización de usuarios para cada proyecto
+        }
+        return projects;
     }
 
     
@@ -117,12 +135,15 @@ public class ProjectService {
 
 
     public Project saveProject(Project projectData) {
-        projectRepository.save(projectData);
+        
         if(projectData.getMutantCycles() != null && !projectData.getMutantCycles().isEmpty()){
             List<MutantCycle> mtnc = projectData.getMutantCycles();
-            saveMutantCycles(projectData, mtnc);
+            for(int i = 0; i < mtnc.size(); i++){
+                MutantCycle cycle = mtnc.get(i);
+                saveMutantsQPrograms(cycle.getMutants());
+            }
         }
-        
+        projectRepository.save(projectData);
         return projectData;
     
     }
@@ -142,6 +163,25 @@ public class ProjectService {
         mutantCycle.getMutants().forEach(mutant -> mutant.setMutantCycle(mutantCycle));
     }
 
+    private void saveMutantsQPrograms(List<Mutant> mutants) {
+        QProgram quirkCircuit = null;
+        for(int i = 0; i < mutants.size(); i++) {
+            Mutant mutant = mutants.get(i);
+            if (mutant.getQuirkCircuit() != null) {
+                quirkCircuit = mutant.getQuirkCircuit();
+                qProgramRepository.save(quirkCircuit);
+            }
+            if(mutant.getOperator().getName() != null ){
+
+                Optional<Operator> operator = operatorRepository.findByName(mutant.getOperator().getName());
+
+                if(operator.isPresent()){
+                    mutant.setOperator(operator.get());
+                } 
+            
+            }
+        }
+    }
    
 
 }

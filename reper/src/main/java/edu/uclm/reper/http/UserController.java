@@ -54,4 +54,16 @@ public class UserController {
 		}
 		
 	}
+
+	@PostMapping("/getUser")
+	public String getUserEmail(@RequestBody Map<String,String> token) {
+		try{
+			String email = this.userService.getUserEmail(token);
+			return email;
+			
+		}catch (Exception e) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid token");
+		}
+		
+	}
 }

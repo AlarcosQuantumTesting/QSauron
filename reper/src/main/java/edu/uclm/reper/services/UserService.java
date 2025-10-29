@@ -2,7 +2,6 @@ package edu.uclm.reper.services;
 
 import java.util.Map;
 
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -37,6 +36,15 @@ public class UserService {
 
     public String login(Map<String,String> user) throws Exception {
         return alarideProxy.login(user);
+    }
+
+    public String getUserEmail(Map<String, String> token) throws Exception {
+        try {
+            return alarideProxy.getUserId(token);
+        } catch (Exception e) {
+            throw new Exception("Error retrieving user email: " + e.getMessage(), e);
+        }
+        
     }
     
 }

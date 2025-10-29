@@ -42,7 +42,7 @@ public interface MutantRepository extends JpaRepository<Mutant, Long> {
     /**
      * Find mutants by quirk circuit ID
      */
-    List<Mutant> findByQuirkCircuitId(Long quirkCircuitId);
+    List<Mutant> findByQuirkCircuitId(String quirkCircuitId);
     
     /**
      * Find mutants by position (column and row)

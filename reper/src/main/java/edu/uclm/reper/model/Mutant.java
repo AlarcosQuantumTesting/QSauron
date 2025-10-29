@@ -1,13 +1,28 @@
 package edu.uclm.reper.model;
 
-import jakarta.persistence.*;
 import java.util.List;
-import com.fasterxml.jackson.annotation.JsonManagedReference;
+
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.fasterxml.jackson.annotation.JsonProperty;
+
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "mutants")
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class Mutant {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -26,10 +41,10 @@ public class Mutant {
     @JsonProperty("mutatedRow")
     private int row;
 
-    @OneToOne(fetch = FetchType.LAZY)
+    @OneToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "quirk_circuit_id")
     @JsonProperty("circuit")
-    private QCircuit quirkCircuit;
+    private QProgram quirkCircuit;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "operator_id")
@@ -84,11 +99,11 @@ public class Mutant {
         this.row = row;
     }
 
-    public QCircuit getQuirkCircuit() {
+    public QProgram getQuirkCircuit() {
         return quirkCircuit;
     }
 
-    public void setQuirkCircuit(QCircuit quirkCircuit) {
+    public void setQuirkCircuit(QProgram quirkCircuit) {
         this.quirkCircuit = quirkCircuit;
     }
 
