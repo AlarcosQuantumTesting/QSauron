@@ -19,24 +19,26 @@ public class QCode {
     @Column(name = "id")
     private int id;
 
-    @Column(name = "plataform")
-    private String plataform;
+    @Column(name = "platform")
+    private String platform;
 
     @Column(name = "code", columnDefinition = "TEXT")
     private String code;
 
+    public QCode() {
+    }
 
-    public QCode(String plataform, String code) {
-        this.plataform = plataform;
+    public QCode(String platform, String code) {
+        this.platform = platform;
         this.code = code;
     }
 
     public String getPlataform() {
-        return plataform;
+        return platform;
     }
 
-    public void setPlataform(String plataform) {
-        this.plataform = plataform;
+    public void setPlataform(String platform) {
+        this.platform = platform;
     }
 
     public String getCode() {

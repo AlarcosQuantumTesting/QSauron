@@ -30,7 +30,7 @@ public class QProgram {
     
     @OneToMany( cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JoinColumn(name = "q_program_id")
-    private List<QCode> QCodes;
+    private List<QCode> qCodes;
     
     @Column(name = "qubits")
     private int qubits;
@@ -64,10 +64,10 @@ public class QProgram {
     public QProgram() {}
 
     public List<QCode> getQCodes() {
-        return QCodes;
+        return qCodes;
     }
     public void setQCodes(List<QCode> qCodes) {
-        QCodes = qCodes;
+        this.qCodes = qCodes;
     }
     public QCircuit getQuirkCircuit() {
         return quirkCircuit;

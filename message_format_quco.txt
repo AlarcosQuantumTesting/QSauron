@@ -14,13 +14,13 @@ MATRIX
 ***************************
 {
     "type": "MATRIX",
-    "interestingRows": 5,
-    "positionValue": {
+      "interestingRows": 4,
+      "positionValue": {
         "0": 1,
-        "1": 3,
-        "2": 7,
-        "3": 2
-    }
+        "1": 2,
+        "2": 5,
+        "3": 7
+      }
 }
 
 ***************************
