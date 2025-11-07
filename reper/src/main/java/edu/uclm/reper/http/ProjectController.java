@@ -93,6 +93,28 @@ public class ProjectController {
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
     }
+
+    @PostMapping("/getProjectsName")
+    public ResponseEntity<?> getProjectsName(@RequestBody Map<String,String> request) {
+        
+        try {
+            List<Map<String,String>> projects = projectService.getProjectsName(request);
+            return ResponseEntity.ok(projects);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/getProject")
+    public ResponseEntity<?> getProject(@RequestBody Map<String,String> request) {
+        
+        try {
+            Project project = projectService.getProject(request);
+            return ResponseEntity.ok(project);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+        }
+    }
     
     
     

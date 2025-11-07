@@ -1,6 +1,7 @@
 package edu.uclm.reper.services;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -108,6 +109,64 @@ public class ProjectService {
         }
         return projects;
     }
+
+    public List<Map<String,String>> getProjectsName(Map<String, String> request) throws Exception {
+
+    List<Map<String,String>> projects = new ArrayList<Map<String,String>>();
+
+    try {
+        alarideProxy.validateToken(request);
+    } catch (Exception e) {
+        throw new Exception("Error validating token: " + e.getMessage(), e);
+    }
+    String userId = request.get("email");
+    List<Object> p = projectRepository.findProjectsNameByUserId(userId);
+
+    for (int i = 0; i < p.size(); i ++) {
+
+        Map<String,String> m = new HashMap<>();
+        Object o = p.get(i);
+        
+        Object[] arr = (Object[]) o;
+        String id = String.valueOf(arr[0]);
+        String name = String.valueOf(arr[1]);
+        Object generator = arr[2];
+        String type = generator.getClass().getName();
+        m.put("id", id);
+        m.put("name", name);
+        m.put("type", type);
+        projects.add(m);
+    }
+
+
+    return projects;
+    }
+
+    public Project getProject(Map<String, String> request) throws Exception {
+
+    try {
+        alarideProxy.validateToken(request);
+    } catch (Exception e) {
+        throw new Exception("Error validating token: " + e.getMessage(), e);
+    }
+
+    String userId = request.get("email");
+
+    User user = userRepository.getById(userId);
+
+    String projectId = request.get("projectId");
+    
+    Project project = projectRepository.getById(projectId);
+
+    if(!project.getUsers().contains(user)){
+        throw new Exception("Usuario no asociado al proyecto: " + userId);
+    }
+
+
+    return project;
+    }
+
+
 
     
     /*//Remueve la asociación entre un proyecto y un usuario

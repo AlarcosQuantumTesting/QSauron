@@ -1,7 +1,5 @@
 package edu.uclm.reper.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -11,7 +9,7 @@ import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "QCode")
-@JsonIgnoreProperties(ignoreUnknown = true)
+//@JsonIgnoreProperties(ignoreUnknown = true)
 public class QCode {
 
     @Id
@@ -33,11 +31,11 @@ public class QCode {
         this.code = code;
     }
 
-    public String getPlataform() {
+    public String getPlatform() {
         return platform;
     }
 
-    public void setPlataform(String platform) {
+    public void setPlatform(String platform) {
         this.platform = platform;
     }
 

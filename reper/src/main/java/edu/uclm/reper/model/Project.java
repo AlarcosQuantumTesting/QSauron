@@ -24,6 +24,7 @@ import jakarta.persistence.Table;
 @Table(name = "projects")
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Project {
+    
     @Id
     @Column(name = "id")
     private String id;
