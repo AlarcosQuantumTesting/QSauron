@@ -1,10 +1,17 @@
 package edu.uclm.reper.model;
 
-import jakarta.persistence.*;
-
-
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.DiscriminatorColumn;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Inheritance;
+import jakarta.persistence.InheritanceType;
+import jakarta.persistence.Table;
 
 @JsonTypeInfo(
     use = JsonTypeInfo.Id.NAME,
@@ -14,7 +21,6 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 @JsonSubTypes({
     @JsonSubTypes.Type(value = Grenoble.class, name = "GRENOBLE"),
     @JsonSubTypes.Type(value = Matrix.class, name = "MATRIX"),
-    @JsonSubTypes.Type(value = GroverAndRudolph.class, name = "GROVER_RUDOLPH"),
     @JsonSubTypes.Type(value = Genetic.class, name = "GENETIC"),
     @JsonSubTypes.Type(value = Grover.class, name = "GROVER"),
 })

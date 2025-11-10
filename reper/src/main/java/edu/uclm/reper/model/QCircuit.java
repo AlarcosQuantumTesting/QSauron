@@ -27,8 +27,17 @@ public class QCircuit {
     @JsonProperty("quirkCode")
     private JsonNode code;
     
+    @Column(name = "mutableColumns")
+    @JsonProperty("mutableColumns")
+    private String mutableColumns;
+
+    @Column(name = "mutableRows")
+    @JsonProperty("mutableRows")
+    private String mutableRows;
 
     
+   
+
     public QCircuit() {}
 
     public QCircuit(int qbits, JsonNode code) {
@@ -58,5 +67,21 @@ public class QCircuit {
 
     public void setQbits(int qbits) {
         this.qbits = qbits;
+    }
+
+    public String getMutableColumns() {
+        return mutableColumns;
+    }
+
+    public void setMutableColumns(String mutableColumns) {
+        this.mutableColumns = mutableColumns;
+    }
+
+    public String getMutableRows() {
+        return mutableRows;
+    }
+
+    public void setMutableRows(String mutableRows) {
+        this.mutableRows = mutableRows;
     }
 }

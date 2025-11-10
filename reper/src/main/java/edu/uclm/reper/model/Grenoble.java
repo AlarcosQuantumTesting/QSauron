@@ -1,6 +1,15 @@
 package edu.uclm.reper.model;
 
-import jakarta.persistence.*;
+import java.util.Map;
+
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.Column;
+import jakarta.persistence.DiscriminatorValue;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.Entity;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.MapKeyColumn;
+import jakarta.persistence.Table;
 
 /**
  * Grenoble generator for quantum circuits
@@ -20,6 +29,13 @@ public class Grenoble extends Generator {
     
     @Column(name = "splitted")
     private boolean splitted;
+
+    @ElementCollection
+    @CollectionTable(name = "grenoble_position_values", joinColumns = @JoinColumn(name = "grenoble_id"))
+    @MapKeyColumn(name = "position_key")
+    @Column(name = "position_value")
+    private Map<Integer, Integer> positionValue;
+
 
     // Constructors
     public Grenoble() {}
@@ -55,5 +71,13 @@ public class Grenoble extends Generator {
 
     public void setSplitted(boolean splitted) {
         this.splitted = splitted;
+    }
+
+    public Map<Integer, Integer> getPositionValue() {
+        return positionValue;
+    }
+
+    public void setPositionValue(Map<Integer, Integer> positionValue) {
+        this.positionValue = positionValue;
     }
 }
