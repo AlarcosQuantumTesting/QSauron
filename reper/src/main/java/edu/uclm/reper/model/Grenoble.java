@@ -34,7 +34,7 @@ public class Grenoble extends Generator {
     @CollectionTable(name = "grenoble_position_values", joinColumns = @JoinColumn(name = "grenoble_id"))
     @MapKeyColumn(name = "position_key")
     @Column(name = "position_value")
-    private Map<Integer, Integer> positionValue;
+    private Map<Integer, Double> positionValue;
 
 
     // Constructors
@@ -73,11 +73,11 @@ public class Grenoble extends Generator {
         this.splitted = splitted;
     }
 
-    public Map<Integer, Integer> getPositionValue() {
+    public Map<Integer, Double> getPositionValue() {
         return positionValue;
     }
 
-    public void setPositionValue(Map<Integer, Integer> positionValue) {
+    public void setPositionValue(Map<Integer, Double> positionValue) {
         this.positionValue = positionValue;
     }
 }
