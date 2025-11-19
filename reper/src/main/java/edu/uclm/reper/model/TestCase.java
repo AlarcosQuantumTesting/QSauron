@@ -1,7 +1,20 @@
 package edu.uclm.reper.model;
 
-import jakarta.persistence.*;
+import java.util.List;
+
 import com.fasterxml.jackson.annotation.JsonBackReference;
+
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
 
 /**
  * TestCase entity representing individual test cases
@@ -21,6 +34,10 @@ public class TestCase {
     @JoinColumn(name = "test_suite_id")
     @JsonBackReference("testSuite-testCases")
     private TestSuite testSuite;
+
+    @OneToMany( cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @JoinColumn(name = "notes_id")
+    private List<ProjectNote> notes;
 
     // Constructors
     public TestCase() {}
@@ -50,5 +67,13 @@ public class TestCase {
 
     public void setTestSuite(TestSuite testSuite) {
         this.testSuite = testSuite;
+    }
+
+    public List<ProjectNote> getNotes() {
+        return notes;
+    }
+
+    public void setNotes(List<ProjectNote> notes) {
+        this.notes = notes;
     }
 }

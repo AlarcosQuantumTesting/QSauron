@@ -50,6 +50,8 @@ public class Project {
         joinColumns = @JoinColumn(name = "project_id"),
         inverseJoinColumns = @JoinColumn(name = "user_id")
     )
+
+
     @JsonIgnoreProperties({"projects"})
     private List<User> users;
 
