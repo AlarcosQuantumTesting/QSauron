@@ -1,33 +1,45 @@
 package edu.uclm.reper.model;
 
+import java.util.List;
+
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 
+@Entity
+@Table(name = "editor_gates")
 public class EditorGates {
-     
-    @Column(name ="gateId")
+    
+    @Id
+    @Column(name = "gate_id")
     @JsonProperty("id")
     private String gateId;
-
-    @Column(name ="column")
-    private int column;
     
-    @Column(name ="name")
+    @Column(name = "editor_id", insertable = false, updatable = false)
+    private Long editorId;
+    
+    @Column(name = "column_number")
+    private Integer column;
+    
+    @Column(name = "gate_name")
     private String name;
-
-    @Column(name ="editor_qubits")
-    private int[] qubits;
-
-    @Column(name ="parentQubit")
-    private int parentQubit;
-
-    @Column(name ="transactionId")
+    
+    @ElementCollection(fetch = FetchType.EAGER)
+    private List<Integer> qubits;
+    
+    @Column(name = "parent_qubit")
+    private Integer parentQubit;
+    
+    @Column(name = "transaction_id")
     private String transactionId;
 
     public EditorGates() {
     }
-
 
     public String getGateId() {
         return gateId;
@@ -37,11 +49,19 @@ public class EditorGates {
         this.gateId = gateId;
     }
 
-    public int getColumn() {
+    public Long getEditorId() {
+        return editorId;
+    }
+
+    public void setEditorId(Long editorId) {
+        this.editorId = editorId;
+    }
+
+    public Integer getColumn() {
         return column;
     }
 
-    public void setColumn(int column) {
+    public void setColumn(Integer column) {
         this.column = column;
     }
 
@@ -53,19 +73,19 @@ public class EditorGates {
         this.name = name;
     }
 
-    public int[] getQubits() {
+    public List<Integer> getQubits() {
         return qubits;
     }
 
-    public void setQubits(int[] qubits) {
+    public void setQubits(List<Integer> qubits) {
         this.qubits = qubits;
     }
 
-    public int getParentQubit() {
+    public Integer getParentQubit() {
         return parentQubit;
     }
 
-    public void setParentQubit(int parentQubit) {
+    public void setParentQubit(Integer parentQubit) {
         this.parentQubit = parentQubit;
     }
 
@@ -76,5 +96,4 @@ public class EditorGates {
     public void setTransactionId(String transactionId) {
         this.transactionId = transactionId;
     }
-
 }

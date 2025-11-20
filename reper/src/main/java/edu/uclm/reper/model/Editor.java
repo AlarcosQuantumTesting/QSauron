@@ -13,9 +13,9 @@ import jakarta.persistence.Table;
 @Entity
 @Table(name = "editor_generators")
 @DiscriminatorValue("EDITOR")
-public class Editor  extends Generator{
+public class Editor extends Generator {
    
-    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
     @JoinColumn(name = "editor_id")
     private List<EditorGates> gates;
 
@@ -29,8 +29,4 @@ public class Editor  extends Generator{
     public void setGates(List<EditorGates> gates) {
         this.gates = gates;
     }
-    
-
-    
-
 }

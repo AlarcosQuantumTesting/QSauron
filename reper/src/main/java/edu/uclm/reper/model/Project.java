@@ -53,6 +53,8 @@ public class Project {
     @JsonIgnoreProperties({"projects"})
     private List<User> users;
 
+    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @JoinColumn(name = "editor_id")
     private List<ProjectNote> notes;
 
 
