@@ -27,25 +27,24 @@ public class QProgram {
     @Id
     @Column(name = "id")
     private String id;
-    
-    @OneToMany( cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+
+    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JoinColumn(name = "q_program_id")
     private List<QCode> qCodes;
-    
+
     @Column(name = "qubits")
     private int qubits;
-    
+
     @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JoinColumn(name = "q_program_id")
     private List<Expression> expressions;
-    
+
     @Column(name = "shots")
     private int shots;
-    
+
     @Column(name = "input_qubits")
     private int[] inputQubits;
-    
-    
+
     @Column(name = "output_qubits")
     private int[] outputQubits;
 
@@ -58,20 +57,21 @@ public class QProgram {
     @JoinColumn(name = "generator_id")
     private Generator generator;
 
-
-
-
-    public QProgram() {}
+    public QProgram() {
+    }
 
     public List<QCode> getQCodes() {
         return qCodes;
     }
+
     public void setQCodes(List<QCode> qCodes) {
         this.qCodes = qCodes;
     }
+
     public QCircuit getQuirkCircuit() {
         return quirkCircuit;
     }
+
     public void setQuirkCircuit(QCircuit quirkCircuit) {
         this.quirkCircuit = quirkCircuit;
     }
@@ -83,9 +83,6 @@ public class QProgram {
     public void setId(String id) {
         this.id = id;
     }
-
-
-
 
     public int getQubits() {
         return qubits;
@@ -138,17 +135,17 @@ public class QProgram {
     @JsonSetter("inputQubits")
     public void setInputQubits(String inputQubits) {
         this.inputQubits = Arrays.stream(inputQubits.split(","))
-                                 .mapToInt(Integer::parseInt)
-                                 .toArray();
+                .mapToInt(Integer::parseInt)
+                .toArray();
     }
 
     @JsonSetter("outputQubits")
     public void setOutputQubits(String str) {
 
         this.outputQubits = Arrays.stream(str.split(","))
-                                  .map(String::trim)
-                                  .mapToInt(Integer::parseInt)
-                                  .toArray();
+                .map(String::trim)
+                .mapToInt(Integer::parseInt)
+                .toArray();
     }
-    
+
 }
