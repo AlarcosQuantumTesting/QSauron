@@ -30,6 +30,7 @@ import jakarta.persistence.Table;
     @JsonSubTypes.Type(value = Genetic.class, name = "GENETIC"),
     @JsonSubTypes.Type(value = Grover.class, name = "GROVER"),
     @JsonSubTypes.Type(value = Blocks.class, name = "BLOCKS"),
+    @JsonSubTypes.Type(value = Blocks.class, name = "EDITOR"),
 })
 
 @Entity
