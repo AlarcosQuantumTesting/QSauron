@@ -18,16 +18,20 @@ public class ProjectNote {
     @Column(name ="text")
     private String text;
 
+    @Column(name ="type")
+    private String type;
+
     @Column(name ="timestamp")
     private Date timestamp;
 
     public ProjectNote() {
     }
 
-    public ProjectNote(String id, String text, Date timestamp) {
+    public ProjectNote(String id, String text, Date timestamp, String type) {
         this.id = id;
         this.text = text;
         this.timestamp = timestamp;
+        this.type = type;
     }
 
     public String getId() {
@@ -54,6 +58,12 @@ public class ProjectNote {
         this.timestamp = timestamp;
     }
 
+    public String getType() {
+        return type;
+    }
 
+    public void setType(String type) {
+        this.type = type;
+    }
 
 }

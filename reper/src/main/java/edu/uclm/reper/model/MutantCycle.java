@@ -51,10 +51,6 @@ public class MutantCycle {
     @JsonBackReference("project-mutantCycles")
     private Project project;
 
-    @OneToMany( cascade = CascadeType.ALL, fetch = FetchType.EAGER)
-    @JoinColumn(name = "notes_id")
-    private List<ProjectNote> notes;
-
     // Constructors
     public MutantCycle() {}
 

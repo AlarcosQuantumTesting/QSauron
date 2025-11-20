@@ -50,10 +50,11 @@ public class Project {
         joinColumns = @JoinColumn(name = "project_id"),
         inverseJoinColumns = @JoinColumn(name = "user_id")
     )
-
-
     @JsonIgnoreProperties({"projects"})
     private List<User> users;
+
+    private List<ProjectNote> notes;
+
 
     // Constructors
     public Project() {}
@@ -105,5 +106,13 @@ public class Project {
 
     public void setUsers(List<User> users) {
         this.users = users;
+    }
+
+     public List<ProjectNote> getNotes() {
+        return notes;
+    }
+
+    public void setNotes(List<ProjectNote> notes) {
+        this.notes = notes;
     }
 }
