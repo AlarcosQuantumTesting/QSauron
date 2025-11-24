@@ -33,15 +33,15 @@ public class MutantCycle {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
     private int id;
-    
+
     @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "date")
     private Date date;
-    
-    @OneToMany(mappedBy = "mutantCycle", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+
+    @OneToMany(mappedBy = "mutantCycle", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
     @JsonManagedReference("mutantCycle-mutants")
     private List<Mutant> mutants;
-    
+
     @OneToOne(mappedBy = "mutantCycle", cascade = CascadeType.ALL)
     @JsonManagedReference("mutantCycle-execConfig")
     private ExecConfig execConfig;
@@ -52,12 +52,13 @@ public class MutantCycle {
     private Project project;
 
     // Constructors
-    public MutantCycle() {}
+    public MutantCycle() {
+    }
 
     public MutantCycle(Date date) {
         this.date = date;
-    }    
-    
+    }
+
     // Getters and Setters
     public int getId() {
         return id;
@@ -69,7 +70,9 @@ public class MutantCycle {
 
     public Date getDate() {
         return date;
-    }    public void setDate(Date date) {
+    }
+
+    public void setDate(Date date) {
         this.date = date;
     }
 

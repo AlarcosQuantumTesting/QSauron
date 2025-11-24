@@ -37,27 +37,4 @@ public class QuMuController {
         }
     }
 
-/*  @PostMapping("/saveMutantCycle")
-    public ResponseEntity<String> saveMutantCycle(@RequestBody MutantCycle mutantCycle) {
-        try {
-            qumuService.saveMutantCycle(mutantCycle);
-            return ResponseEntity.ok("Mutant Cycle saved successfully");
-        } catch (Exception e) {
-            e.printStackTrace();
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
-        }
-    }
-
-
-    @PostMapping("/addMutantCycleToProject")
-    public ResponseEntity<String> addMutantCycleToProject(@RequestBody Map<String, String> request) {
-        try {
-            qumuService.addMutantCycleToProject(mutantCycle, projectId);
-            return ResponseEntity.ok("Mutant Cycle added to Project successfully");
-        } catch (Exception e) {
-            e.printStackTrace();
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
-        }
-    }
-*/
 }

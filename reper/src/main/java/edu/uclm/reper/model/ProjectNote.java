@@ -10,25 +10,29 @@ import jakarta.persistence.Table;
 @Entity
 @Table(name = "project_notes")
 public class ProjectNote {
-    
+
     @Id
-    @Column(name ="id")
+    @Column(name = "id")
     private String id;
 
-    @Column(name ="text")
+    @Column(name = "title")
+    private String title;
+
+    @Column(name = "text")
     private String text;
 
-    @Column(name ="type")
+    @Column(name = "type")
     private String type;
 
-    @Column(name ="timestamp")
+    @Column(name = "timestamp")
     private Date timestamp;
 
     public ProjectNote() {
     }
 
-    public ProjectNote(String id, String text, Date timestamp, String type) {
+    public ProjectNote(String id, String title, String text, Date timestamp, String type) {
         this.id = id;
+        this.title = title;
         this.text = text;
         this.timestamp = timestamp;
         this.type = type;
@@ -64,6 +68,14 @@ public class ProjectNote {
 
     public void setType(String type) {
         this.type = type;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
     }
 
 }

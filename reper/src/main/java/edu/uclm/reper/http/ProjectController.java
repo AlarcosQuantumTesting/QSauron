@@ -18,6 +18,8 @@ import edu.uclm.reper.model.Project;
 import edu.uclm.reper.model.User;
 import edu.uclm.reper.services.ProjectService;
 
+// Trigger recompile
+
 @CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/projects")
@@ -31,9 +33,9 @@ public class ProjectController {
      * POST /api/projects/create
      * Body: {"projectName": "Mi Proyecto", "userId": "user123"}
      */
-    
+
     @PostMapping("/create")
-    public ResponseEntity<?> createProject(@RequestBody Map<String,String> request) {
+    public ResponseEntity<?> createProject(@RequestBody Map<String, String> request) {
         try {
             Project project = projectService.createProjectForUser(request.get("projectId"), request.get("userId"));
             return ResponseEntity.ok(project);
@@ -41,7 +43,6 @@ public class ProjectController {
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
     }
-
 
     /**
      * Asocia un proyecto existente con un usuario
@@ -62,8 +63,8 @@ public class ProjectController {
      * GET /api/projects/user/{userId}
      */
     @PostMapping("/getAllByUser")
-    public ResponseEntity<?> getProjectsByUser(@RequestBody Map<String,String> request) {
-        
+    public ResponseEntity<?> getProjectsByUser(@RequestBody Map<String, String> request) {
+
         try {
             List<Project> projects = projectService.getProjectsByUser(request);
             return ResponseEntity.ok(projects);
@@ -71,7 +72,6 @@ public class ProjectController {
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
     }
-
 
     /**
      * Guarda/actualiza los datos de un proyecto
@@ -95,10 +95,10 @@ public class ProjectController {
     }
 
     @PostMapping("/getProjectsName")
-    public ResponseEntity<?> getProjectsName(@RequestBody Map<String,String> request) {
-        
+    public ResponseEntity<?> getProjectsName(@RequestBody Map<String, String> request) {
+
         try {
-            List<Map<String,String>> projects = projectService.getProjectsName(request);
+            List<Map<String, String>> projects = projectService.getProjectsName(request);
             return ResponseEntity.ok(projects);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
@@ -106,8 +106,8 @@ public class ProjectController {
     }
 
     @PostMapping("/getProject")
-    public ResponseEntity<?> getProject(@RequestBody Map<String,String> request) {
-        
+    public ResponseEntity<?> getProject(@RequestBody Map<String, String> request) {
+
         try {
             Project project = projectService.getProject(request);
             return ResponseEntity.ok(project);
@@ -115,8 +115,5 @@ public class ProjectController {
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
     }
-    
-    
-    
 
 }

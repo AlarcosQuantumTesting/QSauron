@@ -1,11 +1,10 @@
 package edu.uclm.reper.model;
 
-import java.util.Arrays;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -43,9 +42,11 @@ public class QProgram {
     private int shots;
 
     @Column(name = "input_qubits")
+    @JsonDeserialize(using = IntArrayDeserializer.class)
     private int[] inputQubits;
 
     @Column(name = "output_qubits")
+    @JsonDeserialize(using = IntArrayDeserializer.class)
     private int[] outputQubits;
 
     @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
@@ -130,22 +131,6 @@ public class QProgram {
 
     public void setGenerator(Generator generator) {
         this.generator = generator;
-    }
-
-    @JsonSetter("inputQubits")
-    public void setInputQubits(String inputQubits) {
-        this.inputQubits = Arrays.stream(inputQubits.split(","))
-                .mapToInt(Integer::parseInt)
-                .toArray();
-    }
-
-    @JsonSetter("outputQubits")
-    public void setOutputQubits(String str) {
-
-        this.outputQubits = Arrays.stream(str.split(","))
-                .map(String::trim)
-                .mapToInt(Integer::parseInt)
-                .toArray();
     }
 
 }

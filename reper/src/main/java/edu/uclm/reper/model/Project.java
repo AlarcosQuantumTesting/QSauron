@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -24,46 +25,44 @@ import jakarta.persistence.Table;
 @Table(name = "projects")
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Project {
-    
+
     @Id
     @Column(name = "id")
     private String id;
-    
+
     @Column(name = "name")
     private String name;
-    
+
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonManagedReference("project-mutantCycles")
     private List<MutantCycle> mutantCycles;
-    
+
     @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JoinColumn(name = "test_suite_id")
-    private TestSuite testSuite;    
-    
+    private TestSuite testSuite;
+
     @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JoinColumn(name = "q_program_id")
     private QProgram qProgram;
 
     @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-        name = "user_projects",
-        joinColumns = @JoinColumn(name = "project_id"),
-        inverseJoinColumns = @JoinColumn(name = "user_id")
-    )
-    @JsonIgnoreProperties({"projects"})
+    @JoinTable(name = "user_projects", joinColumns = @JoinColumn(name = "project_id"), inverseJoinColumns = @JoinColumn(name = "user_id"))
+    @JsonIgnoreProperties({ "projects" })
     private List<User> users;
 
     @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     @JoinColumn(name = "editor_id")
+    @JsonProperty("projectNotes")
     private List<ProjectNote> notes;
 
-
     // Constructors
-    public Project() {}
+    public Project() {
+    }
 
     public Project(String name) {
         this.name = name;
-    }    // Getters and Setters
+    } // Getters and Setters
+
     public String getId() {
         return id;
     }
@@ -98,7 +97,9 @@ public class Project {
 
     public QProgram getqProgram() {
         return qProgram;
-    }    public void setqProgram(QProgram qProgram) {
+    }
+
+    public void setqProgram(QProgram qProgram) {
         this.qProgram = qProgram;
     }
 
@@ -110,7 +111,7 @@ public class Project {
         this.users = users;
     }
 
-     public List<ProjectNote> getNotes() {
+    public List<ProjectNote> getNotes() {
         return notes;
     }
 
