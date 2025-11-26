@@ -2,6 +2,8 @@ package edu.uclm.reper.model;
 
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
@@ -16,15 +18,16 @@ import jakarta.persistence.Table;
 @Entity
 @Table(name = "blocks")
 public class Block {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
+
     @ManyToOne
     @JoinColumn(name = "block_circuit_id")
+    @JsonBackReference
     private BlockCircuit blockCircuit;
-    
+
     @Column(name = "numberOfLeftColumns")
     private int numberOfLeftColumns;
 
@@ -87,7 +90,5 @@ public class Block {
     public void setRightColumns(List<List<String>> rightColumns) {
         this.rightColumns = rightColumns;
     }
-
-    
 
 }

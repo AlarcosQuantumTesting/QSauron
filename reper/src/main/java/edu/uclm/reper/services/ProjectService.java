@@ -112,7 +112,7 @@ public class ProjectService {
         String userId = request.get("email");
         List<Project> projects = projectRepository.findProjectsByUserId(userId);
         for (Project project : projects) {
-            project.getMutantCycles(); // Evita la serialización de usuarios para cada proyecto
+            project.getMutantCycles();
         }
         return projects;
     }
@@ -162,13 +162,28 @@ public class ProjectService {
 
         String projectId = request.get("projectId");
 
-        Project project = projectRepository.getById(projectId);
+        Optional<Project> projectOpt = projectRepository.findById(projectId);
+
+        if (projectOpt.isEmpty()) {
+            throw new Exception("Proyecto no encontrado con ID: " + projectId);
+        }
+
+        Project project = projectOpt.get();
 
         if (!project.getUsers().contains(user)) {
             throw new Exception("Usuario no asociado al proyecto: " + userId);
         }
 
         return project;
+    }
+
+    public boolean deleteProject(String projectId) {
+        try {
+            projectRepository.deleteById(projectId);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     public Project saveProject(Project projectData) {

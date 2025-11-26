@@ -3,6 +3,7 @@ package edu.uclm.reper.model;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -19,11 +20,11 @@ import jakarta.persistence.Table;
 @Table(name = "block_circuits")
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class BlockCircuit {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
+
     @Column(name = "numberOfStartColumns")
     private int numberOfStartColumns;
 
@@ -34,6 +35,7 @@ public class BlockCircuit {
     private List<List<String>> startingColumns;
 
     @OneToMany(mappedBy = "blockCircuit", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @JsonManagedReference
     private List<Block> blocks;
 
     public BlockCircuit() {
@@ -78,8 +80,5 @@ public class BlockCircuit {
     public void setBlocks(List<Block> blocks) {
         this.blocks = blocks;
     }
-
-
-    
 
 }

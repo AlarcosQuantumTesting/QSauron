@@ -105,6 +105,17 @@ public class ProjectController {
         }
     }
 
+    @PostMapping("/delete")
+    public ResponseEntity<?> deleteProject(@RequestBody Map<String, String> request) {
+
+        try {
+            projectService.deleteProject(request.get("projectId"));
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+        }
+    }
+
     @PostMapping("/getProject")
     public ResponseEntity<?> getProject(@RequestBody Map<String, String> request) {
 
