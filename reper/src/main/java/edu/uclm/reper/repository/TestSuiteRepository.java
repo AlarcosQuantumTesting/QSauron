@@ -11,14 +11,14 @@ import java.util.List;
  * Repository interface for TestSuite entity operations
  */
 @Repository
-public interface TestSuiteRepository extends JpaRepository<TestSuite, Long> {
-    
+public interface TestSuiteRepository extends JpaRepository<TestSuite, String> {
+
     /**
      * Find test suites with test cases
      */
     @Query("SELECT ts FROM TestSuite ts WHERE SIZE(ts.testCases) > 0")
     List<TestSuite> findTestSuitesWithTestCases();
-    
+
     /**
      * Count test cases in a test suite
      */

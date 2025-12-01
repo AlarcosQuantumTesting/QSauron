@@ -17,7 +17,6 @@ import edu.uclm.reper.model.Project;
 import edu.uclm.reper.model.QCircuit;
 import edu.uclm.reper.model.QProgram;
 import edu.uclm.reper.model.User;
-import edu.uclm.reper.repository.MutantCycleRepository;
 import edu.uclm.reper.repository.MutantRepository;
 import edu.uclm.reper.repository.OperatorRepository;
 import edu.uclm.reper.repository.ProjectRepository;
@@ -38,9 +37,6 @@ public class ProjectService {
 
     @Autowired
     private AlarideProxy alarideProxy;
-
-    @Autowired
-    private MutantCycleRepository mutantCycleRepository;
 
     @Autowired
     private QProgramRepository qProgramRepository;
@@ -158,7 +154,7 @@ public class ProjectService {
 
         String userId = request.get("email");
 
-        User user = userRepository.getById(userId);
+        User user = userRepository.findById(userId).get();
 
         String projectId = request.get("projectId");
 
