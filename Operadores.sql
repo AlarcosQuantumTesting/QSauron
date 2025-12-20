@@ -1,0 +1,43 @@
+INSERT INTO quantum_reper.operator_types (id, name) VALUES
+(2, 'Control Gates'),
+(1, 'Initialization errors'),
+(5, 'Other operators'),
+(4, 'Position errors'),
+(3, 'Swap Gates'),
+(6, 'Phase Gates');
+
+INSERT INTO quantum_reper.operators 
+(id, description, enabled, name, operator_type_id) 
+VALUES
+(1, 'Initialization error that changes the qubit''s initial value', 1, 'ChangeInitialValue', 1),
+(2, 'Initialization error that duplicates the circuit''s first gate', 1, 'FirstGateDuplication', 1),
+(3, 'Swaps H gates with X gates', 1, 'H_X', 3),
+(4, 'Swaps H gates with Y gates', 1, 'H_Y', 3),
+(5, 'Swaps H gates with Z gates', 1, 'H_Z', 3),
+(6, 'Swaps X gates with H gates', 1, 'X_H', 3),
+(7, 'Swaps X gates with Y gates', 1, 'X_Y', 3),
+(8, 'Swaps X gates with Z gates', 1, 'X_Z', 3),
+(9, 'Swaps Y gates with X gates', 1, 'Y_X', 3),
+(10, 'Swaps Y gates with H gates', 1, 'Y_H', 3),
+(11, 'Swaps Y gates with Z gates', 1, 'Y_Z', 3),
+(12, 'Swaps Z gates with H gates', 1, 'Z_H', 3),
+(13, 'Swaps Z gates with X gates', 1, 'Z_X', 3),
+(14, 'Swaps Z gates with Y gates', 1, 'Z_Y', 3),
+(15, 'Duplicates an additional gate in the circuit', 1, 'FurtherGateDuplication', 5),
+(16, 'Removes uncontrolled control gates', 1, 'NonControlGateRemoval', 5),
+(17, 'Moves a gate down to the adjacent position', 1, 'MoveGateDownAdj', 4),
+(18, 'Moves a gate down to all possible positions', 1, 'MoveGateDownAll', 4),
+(19, 'Moves a gate up to the adjacent position', 1, 'MoveGateUpAdj', 4),
+(20, 'Moves a gate up to all possible positions', 1, 'MoveGateUpAll', 4),
+(21, 'Moves the controlled qubit downward', 1, 'ChangeControlledQubitDown', 4),
+(22, 'Moves the controlled qubit upward', 1, 'ChangeControlledQubitUp', 4),
+(23, 'Moves the control qubit downward', 1, 'ChangeControlQubitDown', 4),
+(24, 'Moves the control qubit upward', 1, 'ChangeControlQubitUp', 4),
+(25, 'Removes control gates from the circuit', 1, 'ControlGateRemoval', 2),
+(26, 'Swaps control and controlled qubits', 1, 'SwapControlAndControlledQubits', 2),
+(27, 'Swaps Z gates with Z^½ gates', 1, 'Z_Z^½', 6),
+(28, 'Swaps Z gates with Z^¼ gates', 1, 'Z_Z^¼', 6),
+(30, 'Swaps Z^½ gates with Z^¼ gates', 1, 'Z^½_Z^¼', 6),
+(29, 'Swaps Z^½ gates with Z gates', 1, 'Z^½_Z', 6),
+(32, 'Swaps Z^¼ gates with Z^½ gates', 1, 'Z^¼_Z^½', 6),
+(31, 'Swaps Z^¼ gates with Z gates', 1, 'Z^¼_Z', 6);

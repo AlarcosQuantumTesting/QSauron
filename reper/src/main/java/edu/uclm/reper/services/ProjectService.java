@@ -23,6 +23,7 @@ import edu.uclm.reper.repository.ProjectRepository;
 import edu.uclm.reper.repository.QCircuitRepository;
 import edu.uclm.reper.repository.QProgramRepository;
 import edu.uclm.reper.repository.UserRepository;
+import edu.uclm.reper.repository.MutantCycleRepository;
 import jakarta.transaction.Transactional;
 
 @Service
@@ -49,6 +50,9 @@ public class ProjectService {
 
     @Autowired
     private MutantRepository mutantRepository;
+
+    @Autowired
+    private MutantCycleRepository mutantCycleRepository;
 
     // Crea un nuevo proyecto y lo asocia con un usuario
     public Project createProjectForUser(String projectName, String userId) {
@@ -287,16 +291,35 @@ public class ProjectService {
                 updateMutants(existingMc, newMc.getMutants());
                 toKeep.add(existingMc);
             } else {
-                newMc.setProject(existingProject);
-                if (newMc.getMutants() != null) {
-                    for (Mutant m : newMc.getMutants()) {
-                        m.setMutantCycle(newMc);
+                MutantCycle cycleToUse = newMc;
+                // If ID is not 0, try to find it in DB to avoid multiple representations
+                if (newMc.getId() != 0) {
+                    Optional<MutantCycle> dbCycle = mutantCycleRepository.findById(newMc.getId());
+                    if (dbCycle.isPresent()) {
+                        cycleToUse = dbCycle.get();
+                        cycleToUse.setDate(newMc.getDate());
+                        if (newMc.getExecConfig() != null) {
+                            newMc.getExecConfig().setMutantCycle(cycleToUse);
+                            cycleToUse.setExecConfig(newMc.getExecConfig());
+                        }
+                        updateMutants(cycleToUse, newMc.getMutants());
                     }
-                    // For new cycles, we still need to check for existing mutants globally to avoid
-                    // UK violations
-                    updateMutants(newMc, newMc.getMutants());
                 }
-                toKeep.add(newMc);
+
+                if (cycleToUse == newMc) {
+                    // Was not found in DB or ID was 0
+                    newMc.setProject(existingProject);
+                    if (newMc.getMutants() != null) {
+                        for (Mutant m : newMc.getMutants()) {
+                            m.setMutantCycle(newMc);
+                        }
+                        updateMutants(newMc, newMc.getMutants());
+                    }
+                } else {
+                    // Found in DB, ensure project link
+                    cycleToUse.setProject(existingProject);
+                }
+                toKeep.add(cycleToUse);
             }
         }
 

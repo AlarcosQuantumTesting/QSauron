@@ -8,16 +8,18 @@ import com.fasterxml.jackson.annotation.JsonBackReference;
  */
 @Entity
 @Table(name = "mutant_results")
+@IdClass(MutantResultId.class)
 public class MutantResult {
+
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
     private int id;
-    
+
     @Enumerated(EnumType.STRING)
     @Column(name = "result")
     private Result result;
 
+    @Id
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "mutant_id")
     @JsonBackReference("mutant-results")
@@ -29,7 +31,8 @@ public class MutantResult {
     private TestCase testCase;
 
     // Constructors
-    public MutantResult() {}
+    public MutantResult() {
+    }
 
     public MutantResult(Result result) {
         this.result = result;
@@ -46,7 +49,9 @@ public class MutantResult {
 
     public Result getResult() {
         return result;
-    }    public void setResult(Result result) {
+    }
+
+    public void setResult(Result result) {
         this.result = result;
     }
 

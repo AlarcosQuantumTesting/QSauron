@@ -32,11 +32,11 @@ public class Mutant {
     @Column(name = "mutant_index")
     @JsonProperty("mutantIndex")
     private int index;
-    
+
     @Column(name = "column_pos")
     @JsonProperty("mutatedColumn")
     private int column;
-    
+
     @Column(name = "row_pos")
     @JsonProperty("mutatedRow")
     private int row;
@@ -56,19 +56,20 @@ public class Mutant {
     private MutantCycle mutantCycle;
 
     @OneToMany(mappedBy = "mutant", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonProperty("mutantResults")
     @JsonManagedReference("mutant-results")
     private List<MutantResult> mutantResults;
 
     // Constructors
-    public Mutant() {}
+    public Mutant() {
+    }
 
     public Mutant(int index, int column, int row) {
         this.index = index;
         this.column = column;
         this.row = row;
     }
-    
-    
+
     public int getId() {
         return id;
     }
@@ -95,7 +96,9 @@ public class Mutant {
 
     public int getRow() {
         return row;
-    }    public void setRow(int row) {
+    }
+
+    public void setRow(int row) {
         this.row = row;
     }
 
@@ -130,6 +133,5 @@ public class Mutant {
     public void setMutantResults(List<MutantResult> mutantResults) {
         this.mutantResults = mutantResults;
     }
-
 
 }
