@@ -14,50 +14,50 @@ import java.util.List;
  */
 @Repository
 public interface MutantResultRepository extends JpaRepository<MutantResult, Long> {
-    
+
     /**
      * Find mutant results by result type
      */
     List<MutantResult> findByResult(Result result);
-    
+
     /**
      * Find mutant results by mutant ID
      */
     List<MutantResult> findByMutantId(Long mutantId);
-    
+
     /**
      * Find mutant results by test case ID
      */
-    List<MutantResult> findByTestCaseId(Long testCaseId);
-    
+    List<MutantResult> findByTestCaseId(String testCaseId);
+
     /**
      * Count results by type
      */
     @Query("SELECT COUNT(mr) FROM MutantResult mr WHERE mr.result = :result")
     long countByResult(@Param("result") Result result);
-    
+
     /**
      * Find killed mutants
      */
     @Query("SELECT mr FROM MutantResult mr WHERE mr.result = 'KILLED'")
     List<MutantResult> findKilledMutants();
-    
+
     /**
      * Find alive mutants
      */
     @Query("SELECT mr FROM MutantResult mr WHERE mr.result = 'ALIVE'")
     List<MutantResult> findAliveMutants();
-    
+
     /**
      * Find zombie mutants
      */
     @Query("SELECT mr FROM MutantResult mr WHERE mr.result = 'ZOMBIE'")
     List<MutantResult> findZombieMutants();
-    
+
     /**
      * Calculate mutation score for a specific mutant cycle
      */
     @Query("SELECT (COUNT(mr) * 1.0 / (SELECT COUNT(m) FROM Mutant m WHERE m.mutantCycle.id = :cycleId)) " +
-           "FROM MutantResult mr WHERE mr.result = 'KILLED' AND mr.mutant.mutantCycle.id = :cycleId")
+            "FROM MutantResult mr WHERE mr.result = 'KILLED' AND mr.mutant.mutantCycle.id = :cycleId")
     Double calculateMutationScore(@Param("cycleId") Long cycleId);
 }

@@ -37,9 +37,9 @@ public class Project {
     @JsonManagedReference("project-mutantCycles")
     private List<MutantCycle> mutantCycles;
 
-    @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    @JoinColumn(name = "test_suite_id")
-    private TestSuite testSuite;
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonManagedReference("project-testSuites")
+    private List<TestSuite> testSuites;
 
     @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JoinColumn(name = "q_program_id")
@@ -87,12 +87,12 @@ public class Project {
         this.mutantCycles = mutantCycles;
     }
 
-    public TestSuite getTestSuite() {
-        return testSuite;
+    public List<TestSuite> getTestSuites() {
+        return testSuites;
     }
 
-    public void setTestSuite(TestSuite testSuite) {
-        this.testSuite = testSuite;
+    public void setTestSuites(List<TestSuite> testSuites) {
+        this.testSuites = testSuites;
     }
 
     public QProgram getqProgram() {
