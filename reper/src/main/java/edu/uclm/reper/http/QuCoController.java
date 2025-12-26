@@ -14,16 +14,15 @@ import edu.uclm.reper.services.QuCoService;
 
 @RestController()
 @RequestMapping("qucoreper")
-@CrossOrigin("*")
+@CrossOrigin(origins = { "http://localhost:4200", "http://localhost:4201" }, allowCredentials = "true")
 public class QuCoController {
-    
+
     @Autowired
     private QuCoService qucoService;
 
-
     @PostMapping("/getcircuit")
     public Generator getCircuit(@RequestBody int id) {
-        try{
+        try {
             return qucoService.getCircuit(id);
         } catch (Exception e) {
             e.printStackTrace();

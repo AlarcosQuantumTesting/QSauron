@@ -104,11 +104,6 @@ public class ProjectService {
     // Obtiene todos los proyectos de un usuario
     public List<Project> getProjectsByUser(Map<String, String> request) throws Exception {
 
-        try {
-            alarideProxy.validateToken(request);
-        } catch (Exception e) {
-            throw new Exception("Error validating token: " + e.getMessage(), e);
-        }
         String userId = request.get("email");
         List<Project> projects = projectRepository.findProjectsByUserId(userId);
         for (Project project : projects) {
@@ -121,11 +116,6 @@ public class ProjectService {
 
         List<Map<String, String>> projects = new ArrayList<Map<String, String>>();
 
-        try {
-            alarideProxy.validateToken(request);
-        } catch (Exception e) {
-            throw new Exception("Error validating token: " + e.getMessage(), e);
-        }
         String userId = request.get("email");
         List<Object> p = projectRepository.findProjectsNameByUserId(userId);
 
@@ -149,12 +139,6 @@ public class ProjectService {
     }
 
     public Project getProject(Map<String, String> request) throws Exception {
-
-        try {
-            alarideProxy.validateToken(request);
-        } catch (Exception e) {
-            throw new Exception("Error validating token: " + e.getMessage(), e);
-        }
 
         String userId = request.get("email");
 

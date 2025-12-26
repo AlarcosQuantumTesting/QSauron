@@ -2,20 +2,23 @@ package edu.uclm.reper.http;
 
 import java.util.Map;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 
 @Service
 public class AlarideProxy {
-    
+
     private final WebClient webClient;
     private String urlAlaride = "http://localhost:80/";
 
     public AlarideProxy() {
         this.webClient = WebClient.builder()
-            .baseUrl(urlAlaride)
-            .build();
+                .baseUrl(urlAlaride)
+                .build();
     }
 
     public void create(String email, String pwd) throws Exception {
@@ -23,12 +26,12 @@ public class AlarideProxy {
 
         try {
             webClient.post()
-                .uri("users/create")
-                .header("Content-Type", "application/json")
-                .body(BodyInserters.fromValue(user))
-                .retrieve()
-                .bodyToMono(String.class)
-                .block();
+                    .uri("users/create")
+                    .header("Content-Type", "application/json")
+                    .body(BodyInserters.fromValue(user))
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
 
             setUser(email);
         } catch (Exception e) {
@@ -43,12 +46,12 @@ public class AlarideProxy {
 
         try {
             webClient.post()
-                .uri("systems/setUser")
-                .header("Content-Type", "application/json")
-                .body(BodyInserters.fromValue(user))
-                .retrieve()
-                .bodyToMono(String.class)
-                .block();
+                    .uri("systems/setUser")
+                    .header("Content-Type", "application/json")
+                    .body(BodyInserters.fromValue(user))
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
         } catch (Exception e) {
             throw new Exception("Error setting user: " + e.getMessage(), e);
         }
@@ -57,44 +60,73 @@ public class AlarideProxy {
     public String login(Map<String, String> user) throws Exception {
         try {
             return webClient.post()
-                .uri("users/login")
-                .header("Content-Type", "application/json")
-                .body(BodyInserters.fromValue(user))
-                .retrieve()
-                .bodyToMono(String.class)
-                .block();
+                    .uri("users/login")
+                    .header("Content-Type", "application/json")
+                    .body(BodyInserters.fromValue(user))
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
         } catch (Exception e) {
             throw new Exception("Error during login: " + e.getMessage(), e);
         }
     }
 
-    public String validateToken(Map <String,String> user) throws Exception {
+    public String validateToken(Map<String, String> user) throws Exception {
         try {
             return webClient.post()
-                .uri("tokens/validate")
-                .header("Content-Type", "application/json")
-                .body(BodyInserters.fromValue(user))
-                .retrieve()
-                .bodyToMono(String.class)
-                .block();
+                    .uri("tokens/validate")
+                    .header("Content-Type", "application/json")
+                    .body(BodyInserters.fromValue(user))
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
         } catch (Exception e) {
             throw new Exception("Error validating token: " + e.getMessage(), e);
         }
     }
 
-    public String getUserId(Map <String,String> token) throws Exception {
+    public String getUserId(Map<String, String> token) throws Exception {
         try {
             return webClient.post()
-                .uri("tokens/getUser")
-                .header("Content-Type", "application/json")
-                .body(BodyInserters.fromValue(token))
-                .retrieve()
-                .bodyToMono(String.class)
-                .block();
+                    .uri("tokens/getUser")
+                    .header("Content-Type", "application/json")
+                    .body(BodyInserters.fromValue(token))
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
         } catch (Exception e) {
             throw new Exception("Error getting user ID: " + e.getMessage(), e);
         }
     }
 
-    
+    @SuppressWarnings("unchecked")
+    public Map<String, String> activar2FA(@RequestBody Map<String, String> request) throws Exception {
+
+        try {
+            return webClient.post()
+                    .uri("users/activate2FA")
+                    .header("Content-Type", "application/json")
+                    .body(BodyInserters.fromValue(request))
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+        } catch (Exception e) {
+            throw new Exception("Error getting user ID: " + e.getMessage(), e);
+        }
+    }
+
+    public String confirm2faCode(Map<String, String> data) throws Exception {
+        try {
+            return webClient.post()
+                    .uri("users/verify2FACode")
+                    .header("Content-Type", "application/json")
+                    .body(BodyInserters.fromValue(data))
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+        } catch (Exception e) {
+            throw new Exception("Error confirming 2FA code: " + e.getMessage(), e);
+        }
+    }
+
 }

@@ -18,7 +18,7 @@ public class UserService {
     @Autowired
     private AlarideProxy alarideProxy;
 
-    public void create (Map<String, String> user) throws Exception {
+    public void create(Map<String, String> user) throws Exception {
         try {
             alarideProxy.create(user.get("email"), user.get("pwd"));
         } catch (Exception e) {
@@ -26,15 +26,15 @@ public class UserService {
         }
 
         User u = new User(user.get("email"));
-        try{
+        try {
             userRepository.save(u);
-        }catch (Exception e) {
+        } catch (Exception e) {
             throw new Exception("Error saving user to repository: " + e.getMessage(), e);
         }
-        
+
     }
 
-    public String login(Map<String,String> user) throws Exception {
+    public String login(Map<String, String> user) throws Exception {
         return alarideProxy.login(user);
     }
 
@@ -44,7 +44,15 @@ public class UserService {
         } catch (Exception e) {
             throw new Exception("Error retrieving user email: " + e.getMessage(), e);
         }
-        
+
     }
-    
+
+    public void validateToken(String token, String email) throws Exception {
+        try {
+            alarideProxy.validateToken(Map.of("token", token, "email", email));
+        } catch (Exception e) {
+            throw new Exception("Invalid token: " + e.getMessage(), e);
+        }
+    }
+
 }
