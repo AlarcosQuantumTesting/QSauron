@@ -19,13 +19,13 @@ public interface ProjectRepository extends JpaRepository<Project, String> {
      * Find projects by name containing the given string (case insensitive)
      */
     List<Project> findByNameContainingIgnoreCase(String name);
-    
+
     /**
      * Find projects with mutant cycles
      */
     @Query("SELECT p FROM Project p WHERE SIZE(p.mutantCycles) > 0")
     List<Project> findProjectsWithMutantCycles();
-    
+
     /**
      * Find projects by user (assuming many-to-many relationship with User)
      */
@@ -33,12 +33,12 @@ public interface ProjectRepository extends JpaRepository<Project, String> {
     List<Project> findProjectsByUserId(@Param("userId") String userId);
 
     @Query("""
-    SELECT p.id, p.name, q.generator
-    FROM Project p
-    JOIN p.users u
-    JOIN p.qProgram q
-    WHERE u.id = :userId
-    """)
-List<Object> findProjectsNameByUserId(@Param("userId") String userId);
+            SELECT p.id, p.name, q.generator
+            FROM Project p
+            JOIN p.users u
+            JOIN p.qProgram q
+            WHERE u.id = :userId
+            """)
+    List<Object> findProjectsNameByUserId(@Param("userId") String userId);
 
 }

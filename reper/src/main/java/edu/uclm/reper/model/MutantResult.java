@@ -2,6 +2,7 @@ package edu.uclm.reper.model;
 
 import jakarta.persistence.*;
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
  * MutantResult entity representing the result of a mutant execution
@@ -9,6 +10,7 @@ import com.fasterxml.jackson.annotation.JsonBackReference;
 @Entity
 @Table(name = "mutant_results")
 @IdClass(MutantResultId.class)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class MutantResult {
 
     @Id
