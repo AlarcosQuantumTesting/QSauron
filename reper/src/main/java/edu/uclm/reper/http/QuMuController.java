@@ -26,7 +26,7 @@ public class QuMuController {
         try {
             return qumuService.getOperatorsByFamily();
         } catch (Exception e) {
-            e.printStackTrace();
+
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
         }
     }

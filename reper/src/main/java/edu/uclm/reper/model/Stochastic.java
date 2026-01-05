@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.DiscriminatorValue;
@@ -37,6 +38,7 @@ public class Stochastic extends TestCase {
     }
 
     // Compatibility methods for handling int[] keys
+    @JsonIgnore
     public void setProbabilityDistributionFromIntArrayMap(Map<int[], Integer> source) {
         if (source == null) {
             this.probabilityDistribution = null;
@@ -48,6 +50,7 @@ public class Stochastic extends TestCase {
         }
     }
 
+    @JsonIgnore
     public Map<int[], Integer> getProbabilityDistributionAsIntArrayMap() {
         if (this.probabilityDistribution == null) {
             return null;

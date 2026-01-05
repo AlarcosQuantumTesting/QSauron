@@ -25,7 +25,7 @@ public class QuCoController {
         try {
             return qucoService.getCircuit(id);
         } catch (Exception e) {
-            e.printStackTrace();
+
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
         }
     }
@@ -35,7 +35,7 @@ public class QuCoController {
         try {
             qucoService.saveCircuit(generator);
         } catch (Exception e) {
-            e.printStackTrace();
+
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }
     }
