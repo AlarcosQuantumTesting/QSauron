@@ -340,28 +340,7 @@ public class ProjectService {
             if (newM.getId() != 0 && currentMap.containsKey(newM.getId())) {
                 existingM = currentMap.get(newM.getId());
             }
-            // 2. Try to find existing mutant in the current cycle by QProgram ID
-            else if (newM.getQuirkCircuit() != null && newM.getQuirkCircuit().getId() != null
-                    && currentMapByQProgram.containsKey(newM.getQuirkCircuit().getId())) {
-                existingM = currentMapByQProgram.get(newM.getQuirkCircuit().getId());
-            }
-            // 3. Try to find existing mutant GLOBALLY by QProgram ID (to avoid UK
-            // violation)
-            else if (newM.getQuirkCircuit() != null && newM.getQuirkCircuit().getId() != null) {
-                List<Mutant> found = mutantRepository.findByQuirkCircuitId(newM.getQuirkCircuit().getId().trim());
-                if (!found.isEmpty()) {
-                    existingM = found.get(0);
-                }
-            }
-
             if (existingM != null) {
-                existingM.setIndex(newM.getIndex());
-                existingM.setColumn(newM.getColumn());
-                existingM.setRow(newM.getRow());
-                existingM.setQuirkCircuit(newM.getQuirkCircuit());
-                existingM.setOperator(newM.getOperator());
-
-                // Ensure it belongs to the current cycle (moving it if it was elsewhere)
                 existingM.setMutantCycle(existingCycle);
 
                 if (newM.getMutantResults() != null) {
