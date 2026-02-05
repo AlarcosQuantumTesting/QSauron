@@ -6,6 +6,7 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -44,6 +45,7 @@ public class MutantCycle {
 
     @OneToOne(mappedBy = "mutantCycle", cascade = CascadeType.ALL)
     @JsonManagedReference("mutantCycle-execConfig")
+    @JsonProperty("execConfiguration")
     private ExecConfig execConfig;
 
     @ManyToOne(fetch = FetchType.LAZY)
