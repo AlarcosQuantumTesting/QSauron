@@ -3,15 +3,15 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>edu.uclm</groupId>
-  <artifactId>reper</artifactId>
+  <artifactId>qsauron</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   <packaging>war</packaging>
 
-  <name>reper</name>
+  <name>qsauron</name>
   <url>http://maven.apache.org</url>
 
   <properties>
-	  <java.version>17</java.version>
+	  <java.version>11</java.version>
   </properties>
     <parent>
     <groupId>org.springframework.boot</groupId>
@@ -70,11 +70,43 @@
 	</dependencies>
 
 	<build>
+	<finalName>qsauron</finalName>
 		<plugins>
+
+
+		
+
+		
+	    
+	        <plugin>
+	            <groupId>org.springframework.boot</groupId>
+	            <artifactId>spring-boot-maven-plugin</artifactId>
+	            <configuration>
+	                <jvmArguments>--add-opens java.base/java.lang=ALL-UNNAMED</jvmArguments>
+	            </configuration>
+	        </plugin>
+
+
 			<plugin>
-				<groupId>org.springframework.boot</groupId>
-				<artifactId>spring-boot-maven-plugin</artifactId>
-			</plugin>
-		</plugins>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-antrun-plugin</artifactId>
+            <version>3.1.0</version>
+            <executions>
+                <execution>
+                    <phase>package</phase>
+                    <goals>
+                        <goal>run</goal>
+                    </goals>
+                    <configuration>
+                        <target>
+                            <copy
+                                file="${project.build.directory}/${project.build.finalName}.war"
+                                todir="C:/Users/samue/Documents/Builds/" />
+                        </target>
+                    </configuration>
+                </execution>
+            </executions>
+        </plugin>
+	    </plugins>
 	</build>
 </project>

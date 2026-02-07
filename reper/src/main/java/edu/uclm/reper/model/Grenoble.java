@@ -2,6 +2,8 @@ package edu.uclm.reper.model;
 
 import java.util.Map;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
+
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.DiscriminatorValue;
@@ -20,13 +22,14 @@ import jakarta.persistence.Table;
 public class Grenoble extends Generator {
     @Column(name = "interesting_rows")
     private int interestingRows;
-    
+
     @Column(name = "physical_angle")
     private float physicalAngle;
-    
-    @Column(name = "parallel")
+
+    @Column(name = "is_parallel")
+    @JsonManagedReference("parallel")
     private boolean parallel;
-    
+
     @Column(name = "splitted")
     private boolean splitted;
 
@@ -36,9 +39,9 @@ public class Grenoble extends Generator {
     @Column(name = "position_value")
     private Map<Integer, Double> positionValue;
 
-
     // Constructors
-    public Grenoble() {}
+    public Grenoble() {
+    }
 
     // Getters and Setters
     public int getInterestingRows() {

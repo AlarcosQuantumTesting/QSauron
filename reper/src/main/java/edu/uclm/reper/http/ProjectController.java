@@ -28,7 +28,6 @@ import jakarta.servlet.http.HttpServletResponse;
 
 // Trigger recompile
 
-@CrossOrigin(origins = { "http://localhost:4200", "http://localhost:4201" }, allowCredentials = "true")
 @RestController
 @RequestMapping("/projects")
 public class ProjectController {

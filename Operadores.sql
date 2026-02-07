@@ -1,4 +1,4 @@
-INSERT INTO quantum_reper.operator_types (id, name) VALUES
+INSERT INTO qsauron.operator_types (id, name) VALUES
 (2, 'Control Gates'),
 (1, 'Initialization errors'),
 (5, 'Other operators'),

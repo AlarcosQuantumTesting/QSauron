@@ -15,7 +15,6 @@ import edu.uclm.reper.services.QumuService;
 
 @RestController()
 @RequestMapping("qumureper")
-@CrossOrigin(origins = "*")
 public class QuMuController {
 
     @Autowired

@@ -32,13 +32,7 @@ public interface ProjectRepository extends JpaRepository<Project, String> {
     @Query("SELECT p FROM Project p JOIN p.users u WHERE u.id = :userId")
     List<Project> findProjectsByUserId(@Param("userId") String userId);
 
-    @Query("""
-            SELECT p.id, p.name, q.generator
-            FROM Project p
-            JOIN p.users u
-            JOIN p.qProgram q
-            WHERE u.id = :userId
-            """)
+    @Query("SELECT p.id, p.name, q.generator FROM Project p JOIN p.users u JOIN p.qProgram q WHERE u.id = :userId")
     List<Object> findProjectsNameByUserId(@Param("userId") String userId);
 
 }

@@ -14,7 +14,6 @@ import edu.uclm.reper.services.QuCoService;
 
 @RestController()
 @RequestMapping("qucoreper")
-@CrossOrigin(origins = { "http://localhost:4200", "http://localhost:4201" }, allowCredentials = "true")
 public class QuCoController {
 
     @Autowired

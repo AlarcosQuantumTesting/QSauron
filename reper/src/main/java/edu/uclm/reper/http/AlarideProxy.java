@@ -13,7 +13,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 public class AlarideProxy {
 
     private final WebClient webClient;
-    private String urlAlaride = "http://localhost:80/";
+    private String urlAlaride = "http://172.20.48.23/v2alaride";
 
     public AlarideProxy() {
         this.webClient = WebClient.builder()
