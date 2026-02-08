@@ -24,7 +24,7 @@ import edu.uclm.reper.repository.QCircuitRepository;
 import edu.uclm.reper.repository.QProgramRepository;
 import edu.uclm.reper.repository.UserRepository;
 import edu.uclm.reper.repository.MutantCycleRepository;
-import jakarta.transaction.Transactional;
+import javax.transaction.Transactional;
 
 @Service
 @Transactional

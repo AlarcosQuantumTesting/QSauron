@@ -2,7 +2,7 @@ package edu.uclm.reper.model;
 
 import java.util.List;
 
-import jakarta.persistence.*;
+import javax.persistence.*;
 
 @Entity
 @Table(name = "operator_types")

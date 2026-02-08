@@ -22,9 +22,9 @@ import edu.uclm.reper.model.Project;
 import edu.uclm.reper.model.User;
 import edu.uclm.reper.services.ProjectService;
 import edu.uclm.reper.services.UserService;
-import jakarta.servlet.http.Cookie;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
 // Trigger recompile
 

@@ -40,6 +40,32 @@
             color: #27ae60;
             margin-bottom: 1rem;
         }
+
+        #endpoints-list {
+            list-style-type: none;
+            padding: 0;
+            max-height: 50vh;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            border-radius: 4px;
+        }
+
+        #endpoints-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #endpoints-list::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        #endpoints-list::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+
+        #endpoints-list::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
     </style>
 </head>
 
@@ -48,7 +74,73 @@
         <div class="status-icon">✓</div>
         <h1>Application Running</h1>
         <p>The QSauron Reper service is up and running correctly.</p>
+
+        <div id="loading">Loading endpoints...</div>
+        <div id="endpoints-container" style="display:none; margin-top: 2rem; text-align: left;">
+            <h2>Available Endpoints</h2>
+            <ul id="endpoints-list">
+                <!-- Endpoints will be injected here -->
+            </ul>
+        </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const list = document.getElementById('endpoints-list');
+            const container = document.getElementById('endpoints-container');
+            const loading = document.getElementById('loading');
+            let path = window.location.pathname;
+            path = path.replace('/index.html', '');
+            if (path.endsWith('/')) {
+                path = path.slice(0, -1);
+            }
+            const base = window.location.origin + path;
+
+            fetch(base + '/system/endpoints')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    loading.style.display = 'none';
+                    container.style.display = 'block';
+
+                    if (data.length === 0) {
+                        list.innerHTML = '<li>No endpoints found.</li>';
+                        return;
+                    }
+
+                    // Sort endpoints by path
+                    data.sort((a, b) => a.path.localeCompare(b.path));
+
+                    data.forEach(endpoint => {
+                        const li = document.createElement('li');
+                        li.style.background = '#f9f9f9';
+                        li.style.margin = '0.5rem 0';
+                        li.style.padding = '1rem';
+                        li.style.borderRadius = '5px';
+                        li.style.border = '1px solid #ddd';
+
+                        const method = endpoint.methods.join(', ');
+                        const fullUrl = base + endpoint.path;
+
+                        li.innerHTML = `
+                            <div style="font-weight: bold; color: #3498db;">${method} <span style="color: #333;">${endpoint.path}</span></div>
+                            <div style="font-size: 0.9rem; color: #7f8c8d; margin-top: 5px;">
+                                <a href="${fullUrl}" target="_blank" style="color: #7f8c8d; text-decoration: none;">${fullUrl}</a>
+                            </div>
+                        `;
+                        list.appendChild(li);
+                    });
+                })
+                .catch(error => {
+                    loading.textContent = 'Error loading endpoints: ' + error.message;
+                    loading.style.color = 'red';
+                });
+        });
+    </script>
 </body>
 
 </html>

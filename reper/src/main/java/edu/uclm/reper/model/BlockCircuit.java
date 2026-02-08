@@ -5,16 +5,16 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Column;
-import jakarta.persistence.ElementCollection;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.Table;
+import javax.persistence.CascadeType;
+import javax.persistence.Column;
+import javax.persistence.ElementCollection;
+import javax.persistence.Entity;
+import javax.persistence.FetchType;
+import javax.persistence.GeneratedValue;
+import javax.persistence.GenerationType;
+import javax.persistence.Id;
+import javax.persistence.OneToMany;
+import javax.persistence.Table;
 
 @Entity
 @Table(name = "block_circuits")
@@ -31,10 +31,12 @@ public class BlockCircuit {
     @Column(name = "numberOfBlocks")
     private int numberOfBlocks;
 
-    @ElementCollection(fetch = FetchType.EAGER)
+    @javax.persistence.Convert(converter = StringListListConverter.class)
+    @Column(name = "startingColumns", columnDefinition = "TEXT")
     private List<List<String>> startingColumns;
 
     @OneToMany(mappedBy = "blockCircuit", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @org.hibernate.annotations.Fetch(org.hibernate.annotations.FetchMode.SUBSELECT)
     @JsonManagedReference
     private List<Block> blocks;
 

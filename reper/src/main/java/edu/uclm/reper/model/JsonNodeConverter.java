@@ -3,7 +3,7 @@ package edu.uclm.reper.model;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import jakarta.persistence.AttributeConverter;
+import javax.persistence.AttributeConverter;
 
 public class JsonNodeConverter implements AttributeConverter<JsonNode, String>{
     private final ObjectMapper mapper = new ObjectMapper();

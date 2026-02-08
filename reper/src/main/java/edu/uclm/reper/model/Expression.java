@@ -1,6 +1,6 @@
 package edu.uclm.reper.model;
 
-import jakarta.persistence.*;
+import javax.persistence.*;
 
 @Entity
 @Table(name = "expressions")

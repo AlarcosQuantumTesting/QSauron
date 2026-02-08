@@ -2,50 +2,50 @@ package edu.uclm.reper.model;
 
 import java.util.List;
 
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Column;
-import jakarta.persistence.DiscriminatorValue;
-import jakarta.persistence.ElementCollection;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.Table;
+import javax.persistence.CascadeType;
+import javax.persistence.Column;
+import javax.persistence.DiscriminatorValue;
+import javax.persistence.ElementCollection;
+import javax.persistence.Entity;
+import javax.persistence.FetchType;
+import javax.persistence.JoinColumn;
+import javax.persistence.OneToOne;
+import javax.persistence.Table;
 
 @Entity
 @Table(name = "blocks_generators")
 @DiscriminatorValue("BLOCKS")
-public class Blocks extends Generator{
-    
+public class Blocks extends Generator {
 
-    @Column(name ="minNumberColumns")
+    @Column(name = "minNumberColumns")
     private int minNumberColumns;
 
-    @Column(name ="maxNumberColumns")
+    @Column(name = "maxNumberColumns")
     private int maxNumberColumns;
 
-    @Column(name ="populationSize")
+    @Column(name = "populationSize")
     private int populationSize;
 
-    @Column(name ="desiredError")
+    @Column(name = "desiredError")
     private Double desiredError;
 
-    @Column(name ="fallsThreshold")
+    @Column(name = "fallsThreshold")
     private int fallsThreshold;
 
-    @Column(name ="applicableWhenBestFitnessFalls")
+    @Column(name = "applicableWhenBestFitnessFalls")
     private boolean applicableWhenBestFitnessFalls;
 
-    @Column(name ="applicableWhenMeanFitnessFalls")
+    @Column(name = "applicableWhenMeanFitnessFalls")
     private boolean applicableWhenMeanFitnessFalls;
 
-    @Column(name ="fitnessPercentage")
+    @Column(name = "fitnessPercentage")
     private Double fitnessPercentage;
 
-    @Column(name ="maxConsecutiveApplications")
+    @Column(name = "maxConsecutiveApplications")
     private int maxConsecutiveApplications;
 
     @ElementCollection(fetch = FetchType.EAGER)
+    @org.hibernate.annotations.Fetch(org.hibernate.annotations.FetchMode.SUBSELECT)
     private List<String> gates;
 
     @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
@@ -54,7 +54,7 @@ public class Blocks extends Generator{
 
     public Blocks() {
     }
-    
+
     public int getMinNumberColumns() {
         return minNumberColumns;
     }

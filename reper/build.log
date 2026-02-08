@@ -1,0 +1,25 @@
+﻿[INFO] Scanning for projects...
+[INFO] 
+[INFO] --------------------------< edu.uclm:qsauron >--------------------------
+[INFO] Building qsauron 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ war ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.2.0:clean (default-clean) @ qsauron ---
+[INFO] Deleting C:\Users\samue\alarcos_projects\QSauron\QSauron\reper\target
+[INFO] 
+[INFO] --- resources:3.2.0:resources (default-resources) @ qsauron ---
+[INFO] Using 'UTF-8' encoding to copy filtered resources.
+[INFO] Using 'UTF-8' encoding to copy filtered properties files.
+[INFO] Copying 1 resource
+[INFO] Copying 2 resources
+[INFO] 
+[INFO] --- compiler:3.10.1:compile (default-compile) @ qsauron ---
+[INFO] Changes detected - recompiling the module!
+[INFO] Compiling 65 source files to C:\Users\samue\alarcos_projects\QSauron\QSauron\reper\target\classes
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  4.453 s
+[INFO] Finished at: 2026-02-08T19:56:29+01:00
+[INFO] ------------------------------------------------------------------------
