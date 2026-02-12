@@ -4,20 +4,21 @@
 
   <groupId>edu.uclm</groupId>
   <artifactId>qsauron</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
+  <version>1.0.0</version>
   <packaging>war</packaging>
 
   <name>qsauron</name>
   <url>http://maven.apache.org</url>
 
-  <properties>
-	  <java.version>11</java.version>
-  </properties>
     <parent>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
-    <version>3.2.0</version>
+    <version>4.0.2</version>
   </parent>
+
+  <properties>
+    <java.version>21</java.version>
+  </properties>
 
   	<dependencies>
 
