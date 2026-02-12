@@ -3,6 +3,7 @@ package edu.uclm.reper.http;
 import java.util.Map;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -13,9 +14,11 @@ import org.springframework.web.reactive.function.client.WebClient;
 public class AlarideProxy {
 
     private final WebClient webClient;
-    private String urlAlaride = "http://172.20.48.23/v2alaride";
 
-    public AlarideProxy() {
+    private final String urlAlaride;
+
+    public AlarideProxy(@Value("${app.alaride.url}") String urlAlaride) {
+        this.urlAlaride = urlAlaride;
         this.webClient = WebClient.builder()
                 .baseUrl(urlAlaride)
                 .build();

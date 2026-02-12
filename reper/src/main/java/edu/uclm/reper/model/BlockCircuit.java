@@ -31,7 +31,8 @@ public class BlockCircuit {
     @Column(name = "numberOfBlocks")
     private int numberOfBlocks;
 
-    @ElementCollection(fetch = FetchType.EAGER)
+    @jakarta.persistence.Convert(converter = StringMatrixConverter.class)
+    @Column(name = "starting_columns", columnDefinition = "JSON")
     private List<List<String>> startingColumns;
 
     @OneToMany(mappedBy = "blockCircuit", cascade = CascadeType.ALL, fetch = FetchType.EAGER)

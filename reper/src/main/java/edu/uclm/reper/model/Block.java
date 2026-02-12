@@ -34,10 +34,12 @@ public class Block {
     @Column(name = "numberOfRightColumns")
     private int numberOfRightColumns;
 
-    @ElementCollection(fetch = FetchType.EAGER)
+    @jakarta.persistence.Convert(converter = StringMatrixConverter.class)
+    @Column(columnDefinition = "JSON")
     private List<List<String>> leftColumns;
 
-    @ElementCollection(fetch = FetchType.EAGER)
+    @jakarta.persistence.Convert(converter = StringMatrixConverter.class)
+    @Column(columnDefinition = "JSON")
     private List<List<String>> rightColumns;
 
     public Block() {
