@@ -15,6 +15,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinColumns;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
@@ -51,7 +52,10 @@ public class Mutant {
     private Operator operator;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "mutant_cycle_id")
+    @JoinColumns({
+            @JoinColumn(name = "mutant_cycle_id", referencedColumnName = "id"),
+            @JoinColumn(name = "project_id", referencedColumnName = "project_id")
+    })
     @JsonBackReference("mutantCycle-mutants")
     private MutantCycle mutantCycle;
 

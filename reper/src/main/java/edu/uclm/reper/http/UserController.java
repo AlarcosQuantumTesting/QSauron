@@ -127,4 +127,24 @@ public class UserController {
 		}
 	}
 
+	@PostMapping("/logout")
+	public boolean logout(HttpServletRequest request, HttpServletResponse response) {
+		Optional<Cookie> cookie = Arrays.stream(request.getCookies() != null ? request.getCookies() : new Cookie[0])
+				.filter(c -> "SESSION_TOKEN".equals(c.getName()))
+				.findFirst();
+
+		if (cookie.isPresent()) {
+			String token = cookie.get().getValue();
+			try {
+				this.alarideProxy.logout(token);
+			} catch (Exception e) {
+				// Ignore error, proceed to logout locally
+			}
+
+			response.addHeader(SET_COOKIE_HEADER, "SESSION_TOKEN=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0");
+			return true;
+		}
+		return false;
+	}
+
 }

@@ -9,57 +9,59 @@ import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinColumns;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Temporal;
 import jakarta.persistence.TemporalType;
-
 
 @Entity
 @Table(name = "exec_configs")
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ExecConfig {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
-    private int id;
-    
+    private String id;
+
     @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "execution_date")
     private Date executionDate;
-    
+
     @Column(name = "machine")
     private String machine;
-    
+
     @Column(name = "exec_algorithm")
     private String execAlgorithm;
-    
+
     @OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "killing_matrix_id")
     private KillingMatrix killingMatrix;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "mutant_cycle_id")
+    @JoinColumns({
+            @JoinColumn(name = "mutant_cycle_id", referencedColumnName = "id"),
+            @JoinColumn(name = "project_id", referencedColumnName = "project_id")
+    })
     @JsonBackReference("mutantCycle-execConfig")
     private MutantCycle mutantCycle;
 
     // Constructors
-    public ExecConfig() {}
+    public ExecConfig() {
+    }
 
     public ExecConfig(Date executionDate, String machine, String execAlgorithm) {
         this.executionDate = executionDate;
         this.machine = machine;
         this.execAlgorithm = execAlgorithm;
-    }    // Getters and Setters
-    public int getId() {
+    } // Getters and Setters
+
+    public String getId() {
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(String id) {
         this.id = id;
     }
 
@@ -89,7 +91,9 @@ public class ExecConfig {
 
     public KillingMatrix getKillingMatrix() {
         return killingMatrix;
-    }    public void setKillingMatrix(KillingMatrix killingMatrix) {
+    }
+
+    public void setKillingMatrix(KillingMatrix killingMatrix) {
         this.killingMatrix = killingMatrix;
     }
 

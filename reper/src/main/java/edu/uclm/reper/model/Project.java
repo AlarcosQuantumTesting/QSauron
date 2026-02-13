@@ -43,6 +43,7 @@ public class Project {
 
     @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JoinColumn(name = "q_program_id")
+    @JsonProperty("qProgram")
     private QProgram qProgram;
 
     @ManyToMany(fetch = FetchType.LAZY)
@@ -95,11 +96,11 @@ public class Project {
         this.testSuites = testSuites;
     }
 
-    public QProgram getqProgram() {
+    public QProgram getQProgram() {
         return qProgram;
     }
 
-    public void setqProgram(QProgram qProgram) {
+    public void setQProgram(QProgram qProgram) {
         this.qProgram = qProgram;
     }
 

@@ -12,9 +12,8 @@ import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.IdClass;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
@@ -28,10 +27,10 @@ import jakarta.persistence.TemporalType;
  */
 @Entity
 @Table(name = "mutant_cycles")
+@IdClass(MutantCycleId.class)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class MutantCycle {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
     private int id;
 
@@ -48,6 +47,7 @@ public class MutantCycle {
     @JsonProperty("execConfiguration")
     private ExecConfig execConfig;
 
+    @Id
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id")
     @JsonBackReference("project-mutantCycles")

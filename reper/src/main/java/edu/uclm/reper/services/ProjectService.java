@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import edu.uclm.reper.http.AlarideProxy;
 import edu.uclm.reper.model.Mutant;
 import edu.uclm.reper.model.MutantCycle;
+import edu.uclm.reper.model.MutantCycleId;
 import edu.uclm.reper.model.Operator;
 import edu.uclm.reper.model.Project;
 import edu.uclm.reper.model.QCircuit;
@@ -192,8 +193,8 @@ public class ProjectService {
 
     private void prepareNewProject(Project project) {
         // Ensure main project circuit is managed
-        if (project.getqProgram() != null) {
-            prepareQProgram(project.getqProgram());
+        if (project.getQProgram() != null) {
+            prepareQProgram(project.getQProgram());
         }
 
         if (project.getMutantCycles() != null) {
@@ -213,15 +214,15 @@ public class ProjectService {
         existing.setName(incoming.getName());
 
         // Update QProgram
-        if (incoming.getqProgram() != null) {
-            QProgram incomingProgram = incoming.getqProgram();
+        if (incoming.getQProgram() != null) {
+            QProgram incomingProgram = incoming.getQProgram();
             prepareQProgram(incomingProgram); // Fix QCircuit reference before attaching
 
             // Save/Merge QProgram explicitly and update reference
             // This ensures 'existing' refers to a managed QProgram, preventing duplicate
             // entry on cascade
             QProgram savedProgram = qProgramRepository.save(incomingProgram);
-            existing.setqProgram(savedProgram);
+            existing.setQProgram(savedProgram);
         }
 
         // Update MutantCycles
@@ -277,8 +278,10 @@ public class ProjectService {
             } else {
                 MutantCycle cycleToUse = newMc;
                 // If ID is not 0, try to find it in DB to avoid multiple representations
+
                 if (newMc.getId() != 0) {
-                    Optional<MutantCycle> dbCycle = mutantCycleRepository.findById(newMc.getId());
+                    Optional<MutantCycle> dbCycle = mutantCycleRepository
+                            .findById(new MutantCycleId(existingProject.getId(), newMc.getId()));
                     if (dbCycle.isPresent()) {
                         cycleToUse = dbCycle.get();
                         cycleToUse.setDate(newMc.getDate());

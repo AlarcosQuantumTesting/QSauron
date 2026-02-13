@@ -3,6 +3,7 @@ package edu.uclm.reper.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.annotation.JsonRawValue;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
@@ -14,7 +15,7 @@ import jakarta.persistence.Table;
 @Table(name = "Qcircuits")
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class QCircuit {
-    
+
     @Id
     @Column(name = "id")
     private String id;
@@ -25,8 +26,9 @@ public class QCircuit {
     @Convert(converter = JsonNodeConverter.class)
     @Column(name = "code", columnDefinition = "JSON")
     @JsonProperty("quirkCode")
+    @JsonRawValue
     private JsonNode code;
-    
+
     @Column(name = "mutableColumns")
     @JsonProperty("mutableColumns")
     private String mutableColumns;
@@ -35,10 +37,8 @@ public class QCircuit {
     @JsonProperty("mutableRows")
     private String mutableRows;
 
-    
-   
-
-    public QCircuit() {}
+    public QCircuit() {
+    }
 
     public QCircuit(int qbits, JsonNode code) {
         this.qbits = qbits;
@@ -61,7 +61,7 @@ public class QCircuit {
         this.code = code;
     }
 
-        public int getQbits() {
+    public int getQbits() {
         return qbits;
     }
 

@@ -132,4 +132,19 @@ public class AlarideProxy {
         }
     }
 
+    public boolean logout(String token) throws Exception {
+        try {
+            Boolean result = webClient.post()
+                    .uri("users/logout")
+                    .header("Content-Type", "application/json")
+                    .body(BodyInserters.fromValue(token))
+                    .retrieve()
+                    .bodyToMono(Boolean.class)
+                    .block();
+            return result != null && result;
+        } catch (Exception e) {
+            throw new Exception("Error during logout: " + e.getMessage(), e);
+        }
+    }
+
 }
