@@ -19,12 +19,12 @@ import org.springframework.web.server.ResponseStatusException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import edu.uclm.reper.model.Project;
+import edu.uclm.reper.model.TestSuite;
 import edu.uclm.reper.model.User;
 import edu.uclm.reper.services.ProjectService;
 import edu.uclm.reper.services.UserService;
 import jakarta.servlet.http.Cookie;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest; // <-- añade import
 
 // Trigger recompile
 
@@ -170,5 +170,61 @@ public class ProjectController {
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
     }
+// no me apaño con el save y el savefull porque yo guardo por un lado cuando hago un cambio el cut y por otro lado le testfile 
+    @PutMapping("/{projectId}/circuit")
+public ResponseEntity<?> updateCircuit(
+        @org.springframework.web.bind.annotation.PathVariable String projectId,
+        @RequestBody Map<String, Object> body,
+        HttpServletRequest req
+) {
+    try {
+        String email = (String) body.get("email");
+        if (email == null || email.isBlank()) {
+            return ResponseEntity.badRequest().body("Error: email required");
+        }
+        this.validateCookie(req, email);
+
+        String updated = (String) body.get("updated_content");
+        if (updated == null) {
+            return ResponseEntity.badRequest().body("Error: updated_content required");
+        }
+
+        projectService.updateCircuitContent(projectId, updated);
+        return ResponseEntity.ok(Map.of("success", true));
+
+    } catch (Exception e) {
+        return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+    }
+}
+
+
+    @PutMapping("/updateTestSuites")
+    public ResponseEntity<?> updateTestSuites(@RequestBody Map<String, Object> request, HttpServletRequest req) {
+        try {
+            // 1) auth
+            String email = (String) request.get("email");
+            String projectId = (String) request.get("projectId");
+            if (email == null || email.isBlank()) return ResponseEntity.badRequest().body("Error: email required");
+            if (projectId == null || projectId.isBlank()) return ResponseEntity.badRequest().body("Error: projectId required");
+
+            this.validateCookie(req, email);
+
+            // 2) parse suites
+            ObjectMapper mapper = new ObjectMapper();
+            List<TestSuite> suites = mapper.convertValue(
+                request.get("testSuites"),
+                mapper.getTypeFactory().constructCollectionType(List.class, TestSuite.class)
+            );
+
+            // 3) call service
+            Project updated = projectService.replaceTestSuites(projectId, email, suites);
+            return ResponseEntity.ok(updated);
+
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+        }
+    }
+
+
 
 }

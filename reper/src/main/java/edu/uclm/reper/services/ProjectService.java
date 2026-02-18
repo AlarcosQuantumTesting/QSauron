@@ -15,7 +15,10 @@ import edu.uclm.reper.model.MutantCycle;
 import edu.uclm.reper.model.Operator;
 import edu.uclm.reper.model.Project;
 import edu.uclm.reper.model.QCircuit;
+import edu.uclm.reper.model.QCode;
 import edu.uclm.reper.model.QProgram;
+import edu.uclm.reper.model.TestCase;
+import edu.uclm.reper.model.TestSuite;
 import edu.uclm.reper.model.User;
 import edu.uclm.reper.repository.MutantRepository;
 import edu.uclm.reper.repository.OperatorRepository;
@@ -398,5 +401,74 @@ public class ProjectService {
             program.setQuirkCircuit(qCircuitRepository.save(circuit));
         }
     }
+    
+    public void updateCircuitContent(String projectId, String updatedContent) {
+    Project p = projectRepository.findById(projectId)
+        .orElseThrow(() -> new RuntimeException("Proyecto no encontrado: " + projectId));
 
+    if (p.getqProgram() == null) {
+        p.setqProgram(new QProgram());
+        p.getqProgram().setId(projectId);
+    }
+
+    QProgram qp = p.getqProgram();
+
+    if (qp.getQCodes() == null || qp.getQCodes().isEmpty()) {
+        List<QCode> list = new ArrayList<>();
+        list.add(new QCode("qiskit", updatedContent));
+        qp.setQCodes(list);
+    } else {
+        QCode qc0 = qp.getQCodes().get(0);
+        qc0.setPlatform(qc0.getPlatform() == null ? "qiskit" : qc0.getPlatform());
+        qc0.setCode(updatedContent);
+    }
+
+    projectRepository.save(p);
+}
+
+
+    public String getCircuitContent(String projectId) {
+        Project p = projectRepository.findById(projectId)
+            .orElseThrow(() -> new RuntimeException("Proyecto no encontrado: " + projectId));
+
+        // EJEMPLO:
+        // return p.getqProgram().getSourceCode();
+
+        return "";
+    }
+    
+    public Project replaceTestSuites(String projectId, String userEmail, List<TestSuite> newSuites) throws Exception {
+    // 1) load + check user owns project (reusa tu lógica)
+    Map<String, String> req = new HashMap<>();
+    req.put("email", userEmail);
+    req.put("projectId", projectId);
+    Project project = this.getProject(req); // ya valida asociación user-proyecto
+
+    // 2) normaliza entrada
+    if (newSuites == null) newSuites = new ArrayList<>();
+
+    // 3) REPLACE total (lo más simple y robusto)
+    if (project.getTestSuites() == null) {
+        project.setTestSuites(new ArrayList<>());
+    } else {
+        project.getTestSuites().clear();
+    }
+
+    for (TestSuite s : newSuites) {
+        // backref suite -> project
+        s.setProject(project);
+
+        // backref case -> suite
+        if (s.getTestCases() != null) {
+            for (TestCase tc : s.getTestCases()) {
+                tc.setTestSuite(s);
+            }
+        }
+
+        project.getTestSuites().add(s);
+    }
+
+    // 4) save
+    return projectRepository.save(project);
+}
 }

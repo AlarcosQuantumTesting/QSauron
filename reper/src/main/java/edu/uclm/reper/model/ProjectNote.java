@@ -15,6 +15,7 @@ public class ProjectNote {
     @Column(name = "id")
     private String id;
 
+  
     @Column(name = "title")
     private String title;
 
@@ -77,5 +78,6 @@ public class ProjectNote {
     public void setTitle(String title) {
         this.title = title;
     }
+
 
 }
