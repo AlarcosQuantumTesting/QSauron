@@ -37,4 +37,11 @@ public class User {
     public void setProjects(List<Project> projects) {
         this.projects = projects;
     }
+
+   @Column(name="email") // si existe en BD
+    private String email;
+
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
+
 }

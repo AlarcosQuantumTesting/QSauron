@@ -28,7 +28,7 @@ public interface MutantResultRepository extends JpaRepository<MutantResult, Long
     /**
      * Find mutant results by test case ID
      */
-    List<MutantResult> findByTestCaseId(String testCaseId);
+    List<MutantResult> findByTestCaseId(Long testCaseId);
 
     /**
      * Count results by type
