@@ -6,7 +6,7 @@ INSERT INTO qsauron.operator_types (id, name) VALUES
 (3, 'Swap Gates'),
 (6, 'Phase Gates');
 
-INSERT INTO quantum_reper.operators 
+INSERT INTO qsauron.operators 
 (id, description, enabled, name, operator_type_id) 
 VALUES
 (1, 'Initialization error that changes the qubit''s initial value', 1, 'ChangeInitialValue', 1),
