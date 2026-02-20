@@ -9,7 +9,6 @@ import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import edu.uclm.reper.http.AlarideProxy;
 import edu.uclm.reper.model.Mutant;
 import edu.uclm.reper.model.MutantCycle;
 import edu.uclm.reper.model.MutantCycleId;
@@ -18,7 +17,6 @@ import edu.uclm.reper.model.Project;
 import edu.uclm.reper.model.QCircuit;
 import edu.uclm.reper.model.QProgram;
 import edu.uclm.reper.model.User;
-import edu.uclm.reper.repository.MutantRepository;
 import edu.uclm.reper.repository.OperatorRepository;
 import edu.uclm.reper.repository.ProjectRepository;
 import edu.uclm.reper.repository.QCircuitRepository;
@@ -26,6 +24,12 @@ import edu.uclm.reper.repository.QProgramRepository;
 import edu.uclm.reper.repository.UserRepository;
 import edu.uclm.reper.repository.MutantCycleRepository;
 import jakarta.transaction.Transactional;
+
+import edu.uclm.reper.dto.ProjectSummaryDTO;
+import edu.uclm.reper.dto.MutantCycleSummaryDTO;
+import edu.uclm.reper.dto.MutantSummaryDTO;
+import edu.uclm.reper.dto.OperatorSummaryDTO;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -38,9 +42,6 @@ public class ProjectService {
     private UserRepository userRepository;
 
     @Autowired
-    private AlarideProxy alarideProxy;
-
-    @Autowired
     private QProgramRepository qProgramRepository;
 
     @Autowired
@@ -48,9 +49,6 @@ public class ProjectService {
 
     @Autowired
     private QCircuitRepository qCircuitRepository;
-
-    @Autowired
-    private MutantRepository mutantRepository;
 
     @Autowired
     private MutantCycleRepository mutantCycleRepository;
@@ -111,6 +109,32 @@ public class ProjectService {
             project.getMutantCycles();
         }
         return projects;
+    }
+
+    // Obtiene version aligerada de proyectos para el sidebar
+    public List<ProjectSummaryDTO> getSidebarProjectsByUser(String email) throws Exception {
+        List<Project> projects = projectRepository.findProjectsByUserId(email);
+
+        return projects.stream().map(project -> {
+            List<MutantCycleSummaryDTO> cycleDTOs = new ArrayList<>();
+            if (project.getMutantCycles() != null) {
+                cycleDTOs = project.getMutantCycles().stream().map(cycle -> {
+                    List<MutantSummaryDTO> mutantDTOs = new ArrayList<>();
+                    if (cycle.getMutants() != null) {
+                        mutantDTOs = cycle.getMutants().stream().map(mutant -> {
+                            OperatorSummaryDTO opDto = null;
+                            if (mutant.getOperator() != null) {
+                                opDto = new OperatorSummaryDTO(mutant.getOperator().getName());
+                            }
+                            return new MutantSummaryDTO(mutant.getIndex(),
+                                    opDto);
+                        }).collect(Collectors.toList());
+                    }
+                    return new MutantCycleSummaryDTO(cycle.getId(), mutantDTOs);
+                }).collect(Collectors.toList());
+            }
+            return new ProjectSummaryDTO(project.getId(), project.getName(), cycleDTOs);
+        }).collect(Collectors.toList());
     }
 
     public List<Map<String, String>> getProjectsName(Map<String, String> request) throws Exception {

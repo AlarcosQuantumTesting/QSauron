@@ -1,61 +1,29 @@
 package edu.uclm.reper.http;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import edu.uclm.reper.model.Project;
 import edu.uclm.reper.model.User;
 import edu.uclm.reper.services.ProjectService;
-import edu.uclm.reper.services.UserService;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-
-// Trigger recompile
 
 @RestController
 @RequestMapping("/projects")
-public class ProjectController {
+public class ProjectController extends BaseController {
 
     @Autowired
     private ProjectService projectService;
-
-    @Autowired
-    private UserService userService;
-
-    private void validateCookie(HttpServletRequest request, String email) {
-        if (request.getCookies() == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No cookies found");
-        }
-        Optional<Cookie> cookie = Arrays.stream(request.getCookies())
-                .filter(c -> "SESSION_TOKEN".equals(c.getName()))
-                .findFirst();
-
-        if (cookie.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Session token not found");
-        }
-
-        try {
-            this.userService.validateToken(cookie.get().getValue(), email);
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid session token");
-        }
-    }
 
     /**
      * Crea un nuevo proyecto y lo asocia con un usuario

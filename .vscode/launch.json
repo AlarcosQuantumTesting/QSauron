@@ -1,0 +1,12 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Spring Boot-ReperApplication",
+            "request": "launch",
+            "mainClass": "edu.uclm.reper.ReperApplication",
+            "projectName": "qsauron"
+        }
+    ]
+}

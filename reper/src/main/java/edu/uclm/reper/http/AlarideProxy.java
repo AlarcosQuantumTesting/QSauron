@@ -29,7 +29,7 @@ public class AlarideProxy {
 
         try {
             webClient.post()
-                    .uri("users/create")
+                    .uri("/users/create")
                     .header("Content-Type", "application/json")
                     .body(BodyInserters.fromValue(user))
                     .retrieve()
@@ -49,7 +49,7 @@ public class AlarideProxy {
 
         try {
             webClient.post()
-                    .uri("systems/setUser")
+                    .uri("/systems/setUser")
                     .header("Content-Type", "application/json")
                     .body(BodyInserters.fromValue(user))
                     .retrieve()
@@ -63,7 +63,7 @@ public class AlarideProxy {
     public String login(Map<String, String> user) throws Exception {
         try {
             return webClient.post()
-                    .uri("users/login")
+                    .uri("/users/login")
                     .header("Content-Type", "application/json")
                     .body(BodyInserters.fromValue(user))
                     .retrieve()
@@ -77,7 +77,7 @@ public class AlarideProxy {
     public String validateToken(Map<String, String> user) throws Exception {
         try {
             return webClient.post()
-                    .uri("tokens/validate")
+                    .uri("/tokens/validate")
                     .header("Content-Type", "application/json")
                     .body(BodyInserters.fromValue(user))
                     .retrieve()
@@ -91,7 +91,7 @@ public class AlarideProxy {
     public String getUserId(Map<String, String> token) throws Exception {
         try {
             return webClient.post()
-                    .uri("tokens/getUser")
+                    .uri("/tokens/getUser")
                     .header("Content-Type", "application/json")
                     .body(BodyInserters.fromValue(token))
                     .retrieve()
@@ -107,7 +107,7 @@ public class AlarideProxy {
 
         try {
             return webClient.post()
-                    .uri("users/activate2FA")
+                    .uri("/users/activate2FA")
                     .header("Content-Type", "application/json")
                     .body(BodyInserters.fromValue(request))
                     .retrieve()
@@ -121,7 +121,7 @@ public class AlarideProxy {
     public String confirm2faCode(Map<String, String> data) throws Exception {
         try {
             return webClient.post()
-                    .uri("users/verify2FACode")
+                    .uri("/users/verify2FACode")
                     .header("Content-Type", "application/json")
                     .body(BodyInserters.fromValue(data))
                     .retrieve()
@@ -135,7 +135,7 @@ public class AlarideProxy {
     public boolean logout(String token) throws Exception {
         try {
             Boolean result = webClient.post()
-                    .uri("users/logout")
+                    .uri("/users/logout")
                     .header("Content-Type", "application/json")
                     .body(BodyInserters.fromValue(token))
                     .retrieve()
