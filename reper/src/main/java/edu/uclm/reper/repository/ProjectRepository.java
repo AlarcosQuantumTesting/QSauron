@@ -35,4 +35,16 @@ public interface ProjectRepository extends JpaRepository<Project, String> {
     @Query("SELECT p.id, p.name, q.generator FROM Project p JOIN p.users u JOIN p.qProgram q WHERE u.id = :userId")
     List<Object> findProjectsNameByUserId(@Param("userId") String userId);
 
+    @Query("SELECT new edu.uclm.reper.dto.ProjectLightSummaryDTO(" +
+            "p.id, " +
+            "p.name, " +
+            "(CASE WHEN (q IS NOT NULL AND SIZE(q.qCodes) > 0) THEN true ELSE false END), " +
+            "(CASE WHEN SIZE(p.mutantCycles) > 0 THEN true ELSE false END), " +
+            "(CASE WHEN SIZE(p.testSuites) > 0 THEN true ELSE false END)) " +
+            "FROM Project p " +
+            "JOIN p.users u " +
+            "LEFT JOIN p.qProgram q " +
+            "WHERE u.id = :userId")
+    List<edu.uclm.reper.dto.ProjectLightSummaryDTO> findLightProjectsByUserId(@Param("userId") String userId);
+
 }

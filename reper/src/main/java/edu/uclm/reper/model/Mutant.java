@@ -42,12 +42,12 @@ public class Mutant {
     @JsonProperty("mutatedRow")
     private int row;
 
-    @OneToOne(fetch = FetchType.EAGER)
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "quirk_circuit_id")
     @JsonProperty("circuit")
     private QProgram quirkCircuit;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "operator_id")
     private Operator operator;
 

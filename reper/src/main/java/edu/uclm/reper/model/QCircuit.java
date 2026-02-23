@@ -6,7 +6,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.annotation.JsonRawValue;
 
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
@@ -23,7 +24,7 @@ public class QCircuit {
     @Column(name = "qbits")
     private int qbits;
 
-    @Convert(converter = JsonNodeConverter.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "code", columnDefinition = "JSON")
     @JsonProperty("quirkCode")
     @JsonRawValue

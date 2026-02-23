@@ -48,4 +48,17 @@ public class QuMuController extends BaseController {
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
     }
+
+    @PostMapping("/deleteMutantCycle")
+    public ResponseEntity<?> deleteMutantCycle(@RequestBody Map<String, Object> request, HttpServletRequest req) {
+        try {
+            String projectId = (String) request.get("projectId");
+            int cycleId = Integer.parseInt(request.get("cycleId").toString());
+            qumuService.deleteMutantCycle(projectId, cycleId);
+            return ResponseEntity.ok(Map.of("message", "Cycle deleted successfully"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+        }
+    }
+
 }

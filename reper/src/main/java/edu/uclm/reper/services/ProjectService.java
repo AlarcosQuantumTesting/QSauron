@@ -137,6 +137,11 @@ public class ProjectService {
         }).collect(Collectors.toList());
     }
 
+    public List<edu.uclm.reper.dto.ProjectLightSummaryDTO> getLightSidebarProjectsByUser(String email)
+            throws Exception {
+        return projectRepository.findLightProjectsByUserId(email);
+    }
+
     public List<Map<String, String>> getProjectsName(Map<String, String> request) throws Exception {
 
         List<Map<String, String>> projects = new ArrayList<Map<String, String>>();
@@ -153,7 +158,7 @@ public class ProjectService {
             String id = String.valueOf(arr[0]);
             String name = String.valueOf(arr[1]);
             Object generator = arr[2];
-            String type = generator.getClass().getName();
+            String type = generator != null ? org.hibernate.Hibernate.getClass(generator).getSimpleName() : "Unknown";
             m.put("id", id);
             m.put("name", name);
             m.put("type", type);
@@ -184,6 +189,69 @@ public class ProjectService {
         }
 
         return project;
+    }
+
+    public edu.uclm.reper.dto.ProjectDetailsDTO getProjectDetailsDTO(Map<String, String> request) throws Exception {
+        Project project = getProject(request);
+
+        edu.uclm.reper.dto.ProjectDetailsDTO dto = new edu.uclm.reper.dto.ProjectDetailsDTO();
+        dto.setId(project.getId());
+        dto.setName(project.getName());
+
+        // QuCoDetails
+        if (project.getQProgram() != null) {
+            edu.uclm.reper.dto.QuCoDetailsDTO quCo = new edu.uclm.reper.dto.QuCoDetailsDTO();
+            quCo.setQubits(project.getQProgram().getQubits());
+            if (project.getQProgram().getGenerator() != null) {
+                String genType = org.hibernate.Hibernate.getClass(project.getQProgram().getGenerator()).getSimpleName();
+                quCo.setGeneratorType(genType);
+            }
+            dto.setQuCoDetails(quCo);
+        }
+
+        // QuTeDetails
+        List<edu.uclm.reper.dto.QuTeDetailsDTO> testDetails = new ArrayList<>();
+        if (project.getTestSuites() != null) {
+            for (edu.uclm.reper.model.TestSuite ts : project.getTestSuites()) {
+                edu.uclm.reper.dto.QuTeDetailsDTO teDto = new edu.uclm.reper.dto.QuTeDetailsDTO();
+                int count = ts.getTestCases() != null ? ts.getTestCases().size() : 0;
+                teDto.setTestCasesCount(count);
+
+                String sType = "Unknown";
+                if (ts.getTestCases() != null && !ts.getTestCases().isEmpty()) {
+                    edu.uclm.reper.model.TestCase firstTc = ts.getTestCases().get(0);
+                    String className = org.hibernate.Hibernate.getClass(firstTc).getSimpleName();
+                    sType = className;
+                }
+                teDto.setSuiteType(sType);
+                testDetails.add(teDto);
+            }
+        }
+        dto.setQuTeDetails(testDetails);
+
+        // QuMuDetails
+        List<edu.uclm.reper.dto.QuMuDetailsDTO> muDetails = new ArrayList<>();
+        if (project.getMutantCycles() != null) {
+            for (edu.uclm.reper.model.MutantCycle mc : project.getMutantCycles()) {
+                edu.uclm.reper.dto.QuMuDetailsDTO muDto = new edu.uclm.reper.dto.QuMuDetailsDTO();
+                int count = mc.getMutants() != null ? mc.getMutants().size() : 0;
+                muDto.setMutantsCount(count);
+                muDetails.add(muDto);
+            }
+        }
+        dto.setQuMuDetails(muDetails);
+
+        // ProjectNotes
+        List<edu.uclm.reper.dto.ProjectNoteDTO> noteDetails = new ArrayList<>();
+        if (project.getNotes() != null) {
+            for (edu.uclm.reper.model.ProjectNote n : project.getNotes()) {
+                noteDetails.add(new edu.uclm.reper.dto.ProjectNoteDTO(
+                        n.getId(), n.getTitle(), n.getText(), n.getType(), n.getTimestamp()));
+            }
+        }
+        dto.setProjectNotes(noteDetails);
+
+        return dto;
     }
 
     public boolean deleteProject(String projectId) {
@@ -426,4 +494,117 @@ public class ProjectService {
         }
     }
 
+    // --- BATCH SAVING METHODS FOR OPTIMIZATION ---
+
+    public void saveMutantsBatch(String projectId, int cycleId, List<Mutant> mutantsBatch) throws Exception {
+        Optional<Project> projectOpt = projectRepository.findById(projectId);
+        if (projectOpt.isEmpty()) {
+            throw new Exception("Project not found: " + projectId);
+        }
+
+        Optional<MutantCycle> cycleOpt = mutantCycleRepository.findById(new MutantCycleId(projectId, cycleId));
+        if (cycleOpt.isEmpty()) {
+            throw new Exception("MutantCycle not found: " + cycleId);
+        }
+
+        MutantCycle cycle = cycleOpt.get();
+
+        // Prepare circuits and operators for the new batch
+        saveMutantsQPrograms(mutantsBatch);
+
+        List<Mutant> currentMutants = cycle.getMutants();
+        if (currentMutants == null) {
+            currentMutants = new ArrayList<>();
+            cycle.setMutants(currentMutants);
+        }
+
+        Map<Integer, Mutant> currentMap = new HashMap<>();
+        for (Mutant m : currentMutants) {
+            currentMap.put(m.getId(), m);
+        }
+
+        for (Mutant newM : mutantsBatch) {
+            Mutant existingM = null;
+
+            if (newM.getId() != 0 && currentMap.containsKey(newM.getId())) {
+                existingM = currentMap.get(newM.getId());
+            }
+
+            if (existingM != null) {
+                // Update existing
+                existingM.setMutantCycle(cycle);
+                if (newM.getMutantResults() != null) {
+                    for (var r : newM.getMutantResults())
+                        r.setMutant(existingM);
+                    if (existingM.getMutantResults() == null)
+                        existingM.setMutantResults(new ArrayList<>());
+                    else
+                        existingM.getMutantResults().clear();
+                    existingM.getMutantResults().addAll(newM.getMutantResults());
+                }
+                // No need to add to list, it's already there
+            } else {
+                // Add new
+                newM.setMutantCycle(cycle);
+                if (newM.getMutantResults() != null) {
+                    for (var r : newM.getMutantResults())
+                        r.setMutant(newM);
+                }
+                currentMutants.add(newM);
+            }
+        }
+
+        mutantCycleRepository.save(cycle);
+    }
+
+    public void saveExecutionsBatch(String projectId, int cycleId, List<Mutant> mutantsWithResultsBatch)
+            throws Exception {
+        Optional<MutantCycle> cycleOpt = mutantCycleRepository.findById(new MutantCycleId(projectId, cycleId));
+        if (cycleOpt.isEmpty()) {
+            throw new Exception("MutantCycle not found: " + cycleId);
+        }
+
+        MutantCycle cycle = cycleOpt.get();
+        List<Mutant> currentMutants = cycle.getMutants();
+        if (currentMutants == null || currentMutants.isEmpty()) {
+            return; // Nothing to update
+        }
+
+        // Create a fast lookup map for existing mutants by mutantIndex (or ID if
+        // preferred, but frontend sends them with IDs hopefully, or index is unique per
+        // cycle)
+        Map<Integer, Mutant> currentMapByIndex = new HashMap<>();
+        Map<Integer, Mutant> currentMapById = new HashMap<>();
+
+        for (Mutant m : currentMutants) {
+            currentMapById.put(m.getId(), m);
+            currentMapByIndex.put(m.getIndex(), m);
+        }
+
+        for (Mutant batchMutant : mutantsWithResultsBatch) {
+            Mutant target = null;
+            if (batchMutant.getId() != 0 && currentMapById.containsKey(batchMutant.getId())) {
+                target = currentMapById.get(batchMutant.getId());
+            } else if (currentMapByIndex.containsKey(batchMutant.getIndex())) {
+                target = currentMapByIndex.get(batchMutant.getIndex());
+            }
+
+            if (target != null && batchMutant.getMutantResults() != null) {
+                // Ensure bidirectional relationship is maintained for newly added results
+                for (var result : batchMutant.getMutantResults()) {
+                    result.setMutant(target);
+                }
+
+                // Clear existing and add new to avoid duplicates, or just set it
+                if (target.getMutantResults() == null) {
+                    target.setMutantResults(new ArrayList<>());
+                } else {
+                    target.getMutantResults().clear();
+                }
+                target.getMutantResults().addAll(batchMutant.getMutantResults());
+            }
+        }
+
+        mutantCycleRepository.save(cycle);
+    }
 }
