@@ -158,7 +158,7 @@ public class ProjectService {
             String id = String.valueOf(arr[0]);
             String name = String.valueOf(arr[1]);
             Object generator = arr[2];
-            String type = generator != null ? org.hibernate.Hibernate.getClass(generator).getSimpleName() : "Unknown";
+            String type = generator.getClass().getName();
             m.put("id", id);
             m.put("name", name);
             m.put("type", type);
@@ -203,7 +203,10 @@ public class ProjectService {
             edu.uclm.reper.dto.QuCoDetailsDTO quCo = new edu.uclm.reper.dto.QuCoDetailsDTO();
             quCo.setQubits(project.getQProgram().getQubits());
             if (project.getQProgram().getGenerator() != null) {
-                String genType = org.hibernate.Hibernate.getClass(project.getQProgram().getGenerator()).getSimpleName();
+                String genType = project.getQProgram().getGenerator().getClass().getSimpleName().toUpperCase();
+                if (genType.contains("$HIBERNATEPROXY$")) {
+                    genType = genType.substring(0, genType.indexOf("$"));
+                }
                 quCo.setGeneratorType(genType);
             }
             dto.setQuCoDetails(quCo);
@@ -220,7 +223,10 @@ public class ProjectService {
                 String sType = "Unknown";
                 if (ts.getTestCases() != null && !ts.getTestCases().isEmpty()) {
                     edu.uclm.reper.model.TestCase firstTc = ts.getTestCases().get(0);
-                    String className = org.hibernate.Hibernate.getClass(firstTc).getSimpleName();
+                    String className = firstTc.getClass().getSimpleName();
+                    if (className.contains("$HibernateProxy$")) {
+                        className = className.substring(0, className.indexOf("$"));
+                    }
                     sType = className;
                 }
                 teDto.setSuiteType(sType);

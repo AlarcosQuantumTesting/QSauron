@@ -57,7 +57,6 @@
 			<groupId>com.mysql</groupId>
 			<artifactId>mysql-connector-j</artifactId>
 			<version>8.3.0</version>
-			<scope>runtime</scope>
 		</dependency>
 
 		<!-- https://mvnrepository.com/artifact/org.apache.httpcomponents.client5/httpclient5 -->
@@ -93,7 +92,6 @@
 	</dependencies>
 
 	<build>
-		<directory>../../Builds/qsauronback</directory>
 		<finalName>qsauronback</finalName>
 		<plugins>
 	        <plugin>
@@ -119,7 +117,7 @@
                         <target>
                             <copy
                                 file="${project.build.directory}/${project.build.finalName}.war"
-                                todir="/Users/samuel/Documents/Builds/" />
+                                todir="/Users/samuel/Documents/Proyectos/Builds/" />
                         </target>
                     </configuration>
                 </execution>
