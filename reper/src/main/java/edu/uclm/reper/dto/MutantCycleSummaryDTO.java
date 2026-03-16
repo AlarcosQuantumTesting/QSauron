@@ -4,12 +4,15 @@ import java.util.List;
 
 public class MutantCycleSummaryDTO {
     private int id;
+    private String name;
     private List<MutantSummaryDTO> mutants;
 
-    public MutantCycleSummaryDTO() {}
+    public MutantCycleSummaryDTO() {
+    }
 
-    public MutantCycleSummaryDTO(int id, List<MutantSummaryDTO> mutants) {
+    public MutantCycleSummaryDTO(int id, String name, List<MutantSummaryDTO> mutants) {
         this.id = id;
+        this.name = name;
         this.mutants = mutants;
     }
 
@@ -27,5 +30,13 @@ public class MutantCycleSummaryDTO {
 
     public void setMutants(List<MutantSummaryDTO> mutants) {
         this.mutants = mutants;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
     }
 }

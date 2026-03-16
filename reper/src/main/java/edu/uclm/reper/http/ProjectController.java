@@ -97,17 +97,6 @@ public class ProjectController extends BaseController {
         }
     }
 
-    @PostMapping("/getProjectsName")
-    public ResponseEntity<?> getProjectsName(@RequestBody Map<String, String> request, HttpServletRequest req) {
-        this.validateCookie(req, request.get("email"));
-        try {
-            List<Map<String, String>> projects = projectService.getProjectsName(request);
-            return ResponseEntity.ok(projects);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
-        }
-    }
-
     @PostMapping("/delete")
     public ResponseEntity<?> deleteProject(@RequestBody Map<String, String> request, HttpServletRequest req) {
         // deleteProject request usually only has projectId.
@@ -135,47 +124,6 @@ public class ProjectController extends BaseController {
             return ResponseEntity.ok(project);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
-        }
-    }
-
-    @PostMapping("/saveMutantsBatch")
-    public ResponseEntity<?> saveMutantsBatch(@RequestBody Map<String, Object> request, HttpServletRequest req) {
-        // Expected payload: { "projectId": "...", "cycleId": 123, "mutants": [...] }
-        try {
-            String projectId = (String) request.get("projectId");
-            int cycleId = (Integer) request.get("cycleId");
-
-            ObjectMapper mapper = new ObjectMapper();
-            List<edu.uclm.reper.model.Mutant> mutants = mapper.convertValue(
-                    request.get("mutants"),
-                    new com.fasterxml.jackson.core.type.TypeReference<List<edu.uclm.reper.model.Mutant>>() {
-                    });
-
-            projectService.saveMutantsBatch(projectId, cycleId, mutants);
-            return ResponseEntity.ok(Map.of("message", "Batch of " + mutants.size() + " mutants saved successfully"));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
-    }
-
-    @PostMapping("/saveExecutionsBatch")
-    public ResponseEntity<?> saveExecutionsBatch(@RequestBody Map<String, Object> request, HttpServletRequest req) {
-        // Expected payload: { "projectId": "...", "cycleId": 123, "mutants": [...] }
-        try {
-            String projectId = (String) request.get("projectId");
-            int cycleId = (Integer) request.get("cycleId");
-
-            ObjectMapper mapper = new ObjectMapper();
-            List<edu.uclm.reper.model.Mutant> mutantsWithResults = mapper.convertValue(
-                    request.get("mutants"),
-                    new com.fasterxml.jackson.core.type.TypeReference<List<edu.uclm.reper.model.Mutant>>() {
-                    });
-
-            projectService.saveExecutionsBatch(projectId, cycleId, mutantsWithResults);
-            return ResponseEntity.ok(Map.of("message",
-                    "Batch of " + mutantsWithResults.size() + " mutant executions saved successfully"));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
 

@@ -5,6 +5,13 @@
             "type": "java",
             "name": "ReperApplication",
             "request": "launch",
+            "mainClass": "edu.uclm.reper.ReperApplication",
+            "projectName": "reper"
+        },
+        {
+            "type": "java",
+            "name": "ReperApplication",
+            "request": "launch",
             "mainClass": "ReperApplication",
             "projectName": "qsauron"
         },

@@ -38,6 +38,9 @@ public class MutantCycle {
     @Column(name = "date")
     private Date date;
 
+    @Column(name = "name")
+    private String name;
+
     @OneToMany(mappedBy = "mutantCycle", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
     @JsonManagedReference("mutantCycle-mutants")
     private List<Mutant> mutants;
@@ -76,6 +79,14 @@ public class MutantCycle {
 
     public void setDate(Date date) {
         this.date = date;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
     }
 
     public List<Mutant> getMutants() {

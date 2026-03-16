@@ -130,7 +130,7 @@ public class ProjectService {
                                     opDto);
                         }).collect(Collectors.toList());
                     }
-                    return new MutantCycleSummaryDTO(cycle.getId(), mutantDTOs);
+                    return new MutantCycleSummaryDTO(cycle.getId(), cycle.getName(), mutantDTOs);
                 }).collect(Collectors.toList());
             }
             return new ProjectSummaryDTO(project.getId(), project.getName(), cycleDTOs);
@@ -612,5 +612,9 @@ public class ProjectService {
         }
 
         mutantCycleRepository.save(cycle);
+    }
+
+    public void deleteMutantCycle(String projectId, int cycleId) throws Exception {
+        mutantCycleRepository.deleteById(new MutantCycleId(projectId, cycleId));
     }
 }
