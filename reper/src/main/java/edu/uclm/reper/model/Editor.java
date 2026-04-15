@@ -41,4 +41,9 @@ public class Editor extends Generator {
     public void setGates(List<EditorGates> gates) {
         this.gates = gates;
     }
+
+    @Override
+    public String getType() {
+        return "EDITOR";
+    }
 }

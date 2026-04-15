@@ -7,17 +7,19 @@ public class ProjectLightSummaryDTO {
     private boolean hasGeneratedCode;
     private boolean hasMutantCycles;
     private boolean hasTestCases;
+    private String generatorType;
 
     public ProjectLightSummaryDTO() {
     }
 
-    public ProjectLightSummaryDTO(String id, String name, boolean hasGeneratedCode, boolean hasMutantCycles,
-            boolean hasTestCases) {
+    public ProjectLightSummaryDTO(String id, String name, Number hasGeneratedCode, Number hasMutantCycles,
+            Number hasTestCases, String generatorType) {
         this.id = id;
         this.name = name;
-        this.hasGeneratedCode = hasGeneratedCode;
-        this.hasMutantCycles = hasMutantCycles;
-        this.hasTestCases = hasTestCases;
+        this.hasGeneratedCode = hasGeneratedCode != null && hasGeneratedCode.intValue() > 0;
+        this.hasMutantCycles = hasMutantCycles != null && hasMutantCycles.intValue() > 0;
+        this.hasTestCases = hasTestCases != null && hasTestCases.intValue() > 0;
+        this.generatorType = generatorType;
     }
 
     public String getId() {
@@ -58,5 +60,13 @@ public class ProjectLightSummaryDTO {
 
     public void setHasTestCases(boolean hasTestCases) {
         this.hasTestCases = hasTestCases;
+    }
+
+    public String getGeneratorType() {
+        return generatorType;
+    }
+
+    public void setGeneratorType(String generatorType) {
+        this.generatorType = generatorType;
     }
 }

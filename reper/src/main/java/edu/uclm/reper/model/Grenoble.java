@@ -3,6 +3,7 @@ package edu.uclm.reper.model;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
@@ -27,7 +28,7 @@ public class Grenoble extends Generator {
     private float physicalAngle;
 
     @Column(name = "is_parallel")
-    @JsonManagedReference("parallel")
+    @JsonProperty("parallel")
     private boolean parallel;
 
     @Column(name = "splitted")
@@ -82,5 +83,9 @@ public class Grenoble extends Generator {
 
     public void setPositionValue(Map<Integer, Double> positionValue) {
         this.positionValue = positionValue;
+    }
+    @Override
+    public String getType() {
+        return "GRENOBLE";
     }
 }

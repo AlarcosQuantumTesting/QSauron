@@ -93,4 +93,9 @@ public class Genetic extends Generator {
     public void setGates(List<String> gates) {
         this.gates = gates;
     }
+
+    @Override
+    public String getType() {
+        return "GENETIC";
+    }
 }

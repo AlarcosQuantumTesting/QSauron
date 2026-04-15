@@ -4,10 +4,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Arrays;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -34,7 +36,8 @@ public class UserController {
 	@Autowired
 	AlarideProxy alarideProxy;
 
-	private static final String COOKIE_FORMAT = "SESSION_TOKEN=%s; Path=/; HttpOnly; Secure; SameSite=None";
+	private static final String COOKIE_FORMAT = "SESSION_TOKEN=%s; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=5400000";
+	private static final String REFRESH_COOKIE_FORMAT = "REFRESH_TOKEN=%s; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=1209600";
 	private static final String SET_COOKIE_HEADER = "Set-Cookie";
 
 	@PostMapping("/create")
@@ -55,13 +58,25 @@ public class UserController {
 	}
 
 	@PostMapping("/login")
-	public String login(@RequestBody Map<String, String> user, HttpServletResponse response) {
+	public ResponseEntity<?> login(@RequestBody Map<String, String> user, HttpServletResponse response) {
 		try {
-			String token = this.userService.login(user);
-			if (!token.isEmpty() && !token.equals("2fa")) {
+			String resJson = this.userService.login(user);
+			if (resJson != null && resJson.equals("2fa")) {
+				return ResponseEntity.ok(resJson);
+			}
+
+			ObjectMapper mapper = new ObjectMapper();
+			JsonNode root = mapper.readTree(resJson);
+			String token = root.has("token") ? root.get("token").asText() : "";
+			String refreshToken = root.has("refreshToken") ? root.get("refreshToken").asText() : "";
+
+			if (!token.isEmpty()) {
 				response.addHeader(SET_COOKIE_HEADER, String.format(COOKIE_FORMAT, token));
 			}
-			return token;
+			if (!refreshToken.isEmpty()) {
+				response.addHeader(SET_COOKIE_HEADER, String.format(REFRESH_COOKIE_FORMAT, refreshToken));
+			}
+			return ResponseEntity.ok(mapper.convertValue(root, Object.class));
 
 		} catch (Exception e) {
 			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid credentials");
@@ -70,38 +85,78 @@ public class UserController {
 	}
 
 	@PostMapping("/getUser")
-	public String getUserEmail(HttpServletRequest request) {
+	public String getUserEmail(HttpServletRequest request, HttpServletResponse response) {
 		try {
 			if (request.getCookies() == null) {
-				throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No cookies found");
+				return null;
 			}
 			Optional<Cookie> cookie = Arrays.stream(request.getCookies())
 					.filter(c -> "SESSION_TOKEN".equals(c.getName()))
 					.findFirst();
 
 			if (cookie.isEmpty()) {
-				throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Session token not found");
+				return null;
 			}
 
 			String token = cookie.get().getValue();
-			String email = this.userService.getUserEmail(Map.of("token", token));
-			return email;
+			try {
+				return this.userService.getUserEmail(Map.of("token", token));
+			} catch (Exception e) {
+				Optional<Cookie> refreshCookie = Arrays.stream(request.getCookies())
+						.filter(c -> "REFRESH_TOKEN".equals(c.getName()))
+						.findFirst();
+				
+				if (refreshCookie.isPresent()) {
+					String refreshTokenStr = refreshCookie.get().getValue();
+					Map<String, String> requestData = Map.of(
+							"refreshToken", refreshTokenStr,
+							"email", "");
+					String resJson = this.userService.refreshToken(requestData);
+					
+					ObjectMapper mapper = new ObjectMapper();
+					JsonNode root = mapper.readTree(resJson);
+					String newToken = root.has("token") ? root.get("token").asText() : "";
+					String newRefreshToken = root.has("refreshToken") ? root.get("refreshToken").asText() : "";
 
+					if (!newToken.isEmpty()) {
+						response.addHeader(SET_COOKIE_HEADER, String.format(COOKIE_FORMAT, newToken));
+					}
+					if (!newRefreshToken.isEmpty()) {
+						response.addHeader(SET_COOKIE_HEADER, String.format(REFRESH_COOKIE_FORMAT, newRefreshToken));
+					}
+
+					if (!newToken.isEmpty()) {
+						return this.userService.getUserEmail(Map.of("token", newToken));
+					}
+				}
+				return null;
+			}
 		} catch (Exception e) {
-			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid token");
+			return null;
 		}
-
 	}
 
 	@PostMapping("/activate2FA")
-	public ResponseEntity<Map<String, String>> activar2FA(@RequestBody Map<String, String> request) {
+	public ResponseEntity<?> activar2FA(@RequestBody Map<String, String> request, HttpServletResponse response) {
 
 		// Lógica para activar 2FA (enviar código, verificar, etc.)
 		try {
-			Map<String, String> res = alarideProxy.activar2FA(request);
+			String resJson = alarideProxy.activar2FA(request);
 
-			if (!res.isEmpty()) {
-				return ResponseEntity.ok(Map.of("mensaje", res.get("mensaje")));
+			if (resJson != null) {
+				ObjectMapper mapper = new ObjectMapper();
+				JsonNode root = mapper.readTree(resJson);
+
+				String token = root.has("token") ? root.get("token").asText() : "";
+				String refreshToken = root.has("refreshToken") ? root.get("refreshToken").asText() : "";
+
+				if (!token.isEmpty()) {
+					response.addHeader(SET_COOKIE_HEADER, String.format(COOKIE_FORMAT, token));
+				}
+				if (!refreshToken.isEmpty()) {
+					response.addHeader(SET_COOKIE_HEADER, String.format(REFRESH_COOKIE_FORMAT, refreshToken));
+				}
+				return ResponseEntity.ok(mapper.convertValue(root, Object.class));
 			} else {
 				return ResponseEntity.badRequest().body(Map.of("mensaje", "Error al activar 2FA"));
 			}
@@ -111,7 +166,7 @@ public class UserController {
 	}
 
 	@PostMapping("/verify2FACode")
-	public String verify2faCode(@RequestBody Map<String, String> data, HttpServletResponse response) {
+	public ResponseEntity<?> verify2faCode(@RequestBody Map<String, String> data, HttpServletResponse response) {
 
 		try {
 			String tokenValue = alarideProxy.confirm2faCode(data);
@@ -120,10 +175,71 @@ public class UserController {
 				throw new ResponseStatusException(HttpStatus.FORBIDDEN);
 			}
 
-			response.addHeader(SET_COOKIE_HEADER, String.format(COOKIE_FORMAT, tokenValue));
-			return tokenValue;
+			try {
+				ObjectMapper mapper = new ObjectMapper();
+				JsonNode root = mapper.readTree(tokenValue);
+				String token = root.has("token") ? root.get("token").asText() : "";
+				String refreshToken = root.has("refreshToken") ? root.get("refreshToken").asText() : "";
+
+				if (!token.isEmpty()) {
+					response.addHeader(SET_COOKIE_HEADER, String.format(COOKIE_FORMAT, token));
+				}
+				if (!refreshToken.isEmpty()) {
+					response.addHeader(SET_COOKIE_HEADER, String.format(REFRESH_COOKIE_FORMAT, refreshToken));
+				}
+				return ResponseEntity.ok(mapper.convertValue(root, Object.class));
+			} catch (Exception e) {
+				response.addHeader(SET_COOKIE_HEADER, String.format(COOKIE_FORMAT, tokenValue));
+				return ResponseEntity.ok(tokenValue);
+			}
 		} catch (Exception e) {
 			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Error al verificar 2FA");
+		}
+	}
+
+	@PostMapping("/refreshToken")
+	public ResponseEntity<?> refreshToken(@RequestBody Map<String, String> body, HttpServletRequest request,
+			HttpServletResponse response) {
+		try {
+			String refreshTokenStr = body.get("refreshToken");
+
+			if (refreshTokenStr == null || refreshTokenStr.isEmpty()) {
+				if (request.getCookies() != null) {
+					Optional<Cookie> cookie = Arrays.stream(request.getCookies())
+							.filter(c -> "REFRESH_TOKEN".equals(c.getName()))
+							.findFirst();
+					if (cookie.isPresent()) {
+						refreshTokenStr = cookie.get().getValue();
+					}
+				}
+			}
+
+			if (refreshTokenStr == null || refreshTokenStr.isEmpty()) {
+				throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token not found");
+			}
+
+			String email = body.get("email");
+			Map<String, String> requestData = Map.of(
+					"refreshToken", refreshTokenStr,
+					"email", email == null ? "" : email);
+
+			String resJson = this.userService.refreshToken(requestData);
+
+			ObjectMapper mapper = new ObjectMapper();
+			JsonNode root = mapper.readTree(resJson);
+			String newToken = root.has("token") ? root.get("token").asText() : "";
+			String newRefreshToken = root.has("refreshToken") ? root.get("refreshToken").asText() : "";
+
+			if (!newToken.isEmpty()) {
+				response.addHeader(SET_COOKIE_HEADER, String.format(COOKIE_FORMAT, newToken));
+			}
+			if (!newRefreshToken.isEmpty()) {
+				response.addHeader(SET_COOKIE_HEADER, String.format(REFRESH_COOKIE_FORMAT, newRefreshToken));
+			}
+			return ResponseEntity.ok(mapper.convertValue(root, Object.class));
+
+		} catch (Exception e) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Error refreshing token");
 		}
 	}
 
@@ -142,6 +258,7 @@ public class UserController {
 			}
 
 			response.addHeader(SET_COOKIE_HEADER, "SESSION_TOKEN=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0");
+			response.addHeader(SET_COOKIE_HEADER, "REFRESH_TOKEN=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0");
 			return true;
 		}
 		return false;

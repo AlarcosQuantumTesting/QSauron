@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import edu.uclm.reper.dto.ProjectLightSummaryDTO;
 import edu.uclm.reper.model.Project;
 
 /**
@@ -35,16 +36,20 @@ public interface ProjectRepository extends JpaRepository<Project, String> {
     @Query("SELECT p.id, p.name, q.generator FROM Project p JOIN p.users u JOIN p.qProgram q WHERE u.id = :userId")
     List<Object> findProjectsNameByUserId(@Param("userId") String userId);
 
-    @Query("SELECT new edu.uclm.reper.dto.ProjectLightSummaryDTO(" +
-            "p.id, " +
-            "p.name, " +
-            "(CASE WHEN (q IS NOT NULL AND SIZE(q.qCodes) > 0) THEN true ELSE false END), " +
-            "(CASE WHEN SIZE(p.mutantCycles) > 0 THEN true ELSE false END), " +
-            "(CASE WHEN SIZE(p.testSuites) > 0 THEN true ELSE false END)) " +
-            "FROM Project p " +
-            "JOIN p.users u " +
-            "LEFT JOIN p.qProgram q " +
-            "WHERE u.id = :userId")
-    List<edu.uclm.reper.dto.ProjectLightSummaryDTO> findLightProjectsByUserId(@Param("userId") String userId);
+    @Query(value = """
+            SELECT
+                p.id AS id,
+                p.name AS name,
+                (CASE WHEN q.id IS NOT NULL AND (SELECT COUNT(*) FROM qcode qc WHERE qc.q_program_id = q.id) > 0 THEN 1 ELSE 0 END) AS hasGeneratedCode,
+                (CASE WHEN (SELECT COUNT(*) FROM mutant_cycles mc WHERE mc.project_id = p.id) > 0 THEN 1 ELSE 0 END) AS hasMutantCycles,
+                (CASE WHEN (SELECT COUNT(*) FROM test_suites ts WHERE ts.project_id = p.id) > 0 THEN 1 ELSE 0 END) AS hasTestCases,
+                g.generator_type AS generatorType
+            FROM projects p
+            JOIN user_projects up ON p.id = up.project_id
+            LEFT JOIN q_programs q ON p.q_program_id = q.id
+            LEFT JOIN generators g ON q.generator_id = g.id
+            WHERE up.user_id = :userId
+            """, nativeQuery = true)
+    List<ProjectLightSummaryDTO> findLightProjectsByUserId(@Param("userId") String userId);
 
 }

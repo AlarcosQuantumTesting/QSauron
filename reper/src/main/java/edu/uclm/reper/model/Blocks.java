@@ -143,4 +143,9 @@ public class Blocks extends Generator{
         this.blockCircuit = blockCircuit;
     }
 
+    @Override
+    public String getType() {
+        return "BLOCKS";
+    }
+
 }

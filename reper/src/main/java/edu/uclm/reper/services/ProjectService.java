@@ -8,7 +8,15 @@ import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.hibernate.Hibernate;
 
+import edu.uclm.reper.model.Generator;
+import edu.uclm.reper.model.Grenoble;
+import edu.uclm.reper.model.Grover;
+import edu.uclm.reper.model.Matrix;
+import edu.uclm.reper.model.Blocks;
+import edu.uclm.reper.model.Editor;
+import edu.uclm.reper.model.Genetic;
 import edu.uclm.reper.model.Mutant;
 import edu.uclm.reper.model.MutantCycle;
 import edu.uclm.reper.model.MutantCycleId;
@@ -16,6 +24,7 @@ import edu.uclm.reper.model.Operator;
 import edu.uclm.reper.model.Project;
 import edu.uclm.reper.model.QCircuit;
 import edu.uclm.reper.model.QProgram;
+import edu.uclm.reper.model.TestSuite;
 import edu.uclm.reper.model.User;
 import edu.uclm.reper.repository.OperatorRepository;
 import edu.uclm.reper.repository.ProjectRepository;
@@ -29,6 +38,8 @@ import edu.uclm.reper.dto.ProjectSummaryDTO;
 import edu.uclm.reper.dto.MutantCycleSummaryDTO;
 import edu.uclm.reper.dto.MutantSummaryDTO;
 import edu.uclm.reper.dto.OperatorSummaryDTO;
+import edu.uclm.reper.dto.ProjectLightSummaryDTO;
+
 import java.util.stream.Collectors;
 
 @Service
@@ -137,9 +148,10 @@ public class ProjectService {
         }).collect(Collectors.toList());
     }
 
-    public List<edu.uclm.reper.dto.ProjectLightSummaryDTO> getLightSidebarProjectsByUser(String email)
+    public List<ProjectLightSummaryDTO> getLightSidebarProjectsByUser(String email)
             throws Exception {
-        return projectRepository.findLightProjectsByUserId(email);
+        List<ProjectLightSummaryDTO> projects = projectRepository.findLightProjectsByUserId(email);
+        return projects;
     }
 
     public List<Map<String, String>> getProjectsName(Map<String, String> request) throws Exception {
@@ -157,8 +169,14 @@ public class ProjectService {
             Object[] arr = (Object[]) o;
             String id = String.valueOf(arr[0]);
             String name = String.valueOf(arr[1]);
-            Object generator = arr[2];
-            String type = generator.getClass().getName();
+            Generator generator = (Generator) arr[2];
+            if (generator != null) {
+                generator = (Generator) Hibernate.unproxy(generator);
+            }
+            String type = "UNKNOWN";
+            if (generator != null) {
+                type = generator.getType();
+            }
             m.put("id", id);
             m.put("name", name);
             m.put("type", type);
@@ -188,6 +206,90 @@ public class ProjectService {
             throw new Exception("Usuario no asociado al proyecto: " + userId);
         }
 
+        // Forzar inicialización de asociaciones lazy para que estén disponibles
+        // en la serialización JSON fuera de la sesión de transacción
+        if (project.getQProgram() != null) {
+            QProgram qProgram = (QProgram) Hibernate.unproxy(project.getQProgram());
+            project.setQProgram(qProgram);
+
+            // Acceder al generator lo inicializa dentro de la transacción activa
+            Generator generator = qProgram.getGenerator();
+            if (generator != null) {
+                // Desenvolver el proxy para que las comprobaciones instanceof funcionen
+                generator = (Generator) Hibernate.unproxy(generator);
+                qProgram.setGenerator(generator);
+
+                // Forzar carga de campos específicos de subclases
+                if (generator instanceof Matrix) {
+                    Matrix m = (Matrix) generator;
+                    if (m.getPositionValue() != null)
+                        m.getPositionValue().size();
+                } else if (generator instanceof Grenoble) {
+                    Grenoble g = (Grenoble) generator;
+                    if (g.getPositionValue() != null)
+                        g.getPositionValue().size();
+                } else if (generator instanceof Blocks) {
+                    Blocks b = (Blocks) generator;
+                    if (b.getGates() != null)
+                        b.getGates().size();
+                    if (b.getBlockCircuit() != null && b.getBlockCircuit().getBlocks() != null) {
+                        b.getBlockCircuit().getBlocks().size();
+                    }
+                } else if (generator instanceof Genetic) {
+                    Genetic g = (Genetic) generator;
+                    if (g.getGates() != null)
+                        g.getGates().size();
+                    if (g.getHadamards() != null)
+                        g.getHadamards().size();
+                } else if (generator instanceof Grover) {
+                    Grover g = (Grover) generator;
+                    if (g.getTruePositions() != null)
+                        g.getTruePositions().size();
+                } else if (generator instanceof Editor) {
+                    Editor e = (Editor) generator;
+                    if (e.getGates() != null)
+                        e.getGates().size();
+                }
+                generator.getId();
+            }
+
+            if (qProgram.getQuirkCircuit() != null) {
+                QCircuit quirkCircuit = (QCircuit) Hibernate.unproxy(qProgram.getQuirkCircuit());
+                qProgram.setQuirkCircuit(quirkCircuit);
+            }
+
+            // Inicializar también los QCodes y expresiones si existen
+            if (qProgram.getQCodes() != null)
+                qProgram.getQCodes().size();
+            if (qProgram.getExpressions() != null)
+                qProgram.getExpressions().size();
+        }
+
+        // Inicializar mutant cycles y sus mutantes con sus circuitos y resultados
+        if (project.getMutantCycles() != null) {
+            for (MutantCycle mc : project.getMutantCycles()) {
+                if (mc.getMutants() != null) {
+                    for (Mutant m : mc.getMutants()) {
+                        if (m.getQuirkCircuit() != null) {
+                            QProgram mq = m.getQuirkCircuit();
+                            if (mq.getQuirkCircuit() != null)
+                                mq.getQuirkCircuit().getId();
+                        }
+                        if (m.getMutantResults() != null)
+                            m.getMutantResults().size();
+                    }
+                }
+            }
+        }
+
+        // Inicializar test suites
+        if (project.getTestSuites() != null) {
+            for (TestSuite ts : project.getTestSuites()) {
+                if (ts.getTestCases() != null)
+                    ts.getTestCases().size();
+            }
+        }
+
         return project;
     }
 
@@ -203,11 +305,8 @@ public class ProjectService {
             edu.uclm.reper.dto.QuCoDetailsDTO quCo = new edu.uclm.reper.dto.QuCoDetailsDTO();
             quCo.setQubits(project.getQProgram().getQubits());
             if (project.getQProgram().getGenerator() != null) {
-                String genType = project.getQProgram().getGenerator().getClass().getSimpleName().toUpperCase();
-                if (genType.contains("$HIBERNATEPROXY$")) {
-                    genType = genType.substring(0, genType.indexOf("$"));
-                }
-                quCo.setGeneratorType(genType);
+                edu.uclm.reper.model.Generator generator = project.getQProgram().getGenerator();
+                quCo.setGeneratorType(generator.getType());
             }
             dto.setQuCoDetails(quCo);
         }
@@ -222,9 +321,9 @@ public class ProjectService {
 
                 String sType = "Unknown";
                 if (ts.getTestCases() != null && !ts.getTestCases().isEmpty()) {
-                    edu.uclm.reper.model.TestCase firstTc = ts.getTestCases().get(0);
+                    Object firstTc = ts.getTestCases().get(0);
                     String className = firstTc.getClass().getSimpleName();
-                    if (className.contains("$HibernateProxy$")) {
+                    if (className.contains("$")) {
                         className = className.substring(0, className.indexOf("$"));
                     }
                     sType = className;

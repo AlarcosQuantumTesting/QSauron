@@ -27,4 +27,9 @@ public class Grover extends Generator {
     public void setTruePositions(List<Integer> truePositions) {
         this.truePositions = truePositions;
     }
+
+    @Override
+    public String getType() {
+        return "GROVER";
+    }
 }

@@ -38,4 +38,9 @@ public class Matrix extends Generator {
     public void setPositionValue(Map<Integer, Integer> positionValue) {
         this.positionValue = positionValue;
     }
+
+    @Override
+    public String getType() {
+        return "MATRIX";
+    }
 }

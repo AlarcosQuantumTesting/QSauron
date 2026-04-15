@@ -102,8 +102,7 @@ public class AlarideProxy {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    public Map<String, String> activar2FA(@RequestBody Map<String, String> request) throws Exception {
+    public String activar2FA(@RequestBody Map<String, String> request) throws Exception {
 
         try {
             return webClient.post()
@@ -111,10 +110,10 @@ public class AlarideProxy {
                     .header("Content-Type", "application/json")
                     .body(BodyInserters.fromValue(request))
                     .retrieve()
-                    .bodyToMono(Map.class)
+                    .bodyToMono(String.class)
                     .block();
         } catch (Exception e) {
-            throw new Exception("Error getting user ID: " + e.getMessage(), e);
+            throw new Exception("Error activating 2FA: " + e.getMessage(), e);
         }
     }
 
@@ -144,6 +143,62 @@ public class AlarideProxy {
             return result != null && result;
         } catch (Exception e) {
             throw new Exception("Error during logout: " + e.getMessage(), e);
+        }
+    }
+
+    public String refreshToken(Map<String, String> request) throws Exception {
+        try {
+            return webClient.post()
+                    .uri("/tokens/refreshToken")
+                    .header("Content-Type", "application/json")
+                    .body(BodyInserters.fromValue(request))
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+        } catch (Exception e) {
+            throw new Exception("Error refreshing token: " + e.getMessage(), e);
+        }
+    }
+
+    public String recoveryRequest(String email) throws Exception {
+        try {
+            return webClient.post()
+                    .uri("/recovery/request")
+                    .header("Content-Type", "application/json")
+                    .body(BodyInserters.fromValue(Map.of("email", email)))
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+        } catch (Exception e) {
+            throw new Exception("Error during recovery request: " + e.getMessage(), e);
+        }
+    }
+
+    public String recoveryValidate(Map<String, String> data) throws Exception {
+        try {
+            return webClient.post()
+                    .uri("/recovery/validate")
+                    .header("Content-Type", "application/json")
+                    .body(BodyInserters.fromValue(data))
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+        } catch (Exception e) {
+            throw new Exception("Error during recovery validation: " + e.getMessage(), e);
+        }
+    }
+
+    public void recoveryReset(Map<String, String> data) throws Exception {
+        try {
+            webClient.post()
+                    .uri("/recovery/reset")
+                    .header("Content-Type", "application/json")
+                    .body(BodyInserters.fromValue(data))
+                    .retrieve()
+                    .bodyToMono(Void.class)
+                    .block();
+        } catch (Exception e) {
+            throw new Exception("Error during password reset: " + e.getMessage(), e);
         }
     }
 

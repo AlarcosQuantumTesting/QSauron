@@ -55,4 +55,27 @@ public class UserService {
         }
     }
 
+    public String refreshToken(Map<String, String> request) throws Exception {
+        return alarideProxy.refreshToken(request);
+    }
+
+    public String recoveryRequest(String email) throws Exception {
+        return alarideProxy.recoveryRequest(email);
+    }
+
+    public String recoveryValidate(String tokenId, String email, String code) throws Exception {
+        Map<String, String> data = Map.of(
+                "tokenId", tokenId,
+                "email", email,
+                "code", code);
+        return alarideProxy.recoveryValidate(data);
+    }
+
+    public void recoveryReset(String email, String newPassword) throws Exception {
+        Map<String, String> data = Map.of(
+                "email", email,
+                "newPassword", newPassword);
+        alarideProxy.recoveryReset(data);
+    }
+
 }

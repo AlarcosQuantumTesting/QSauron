@@ -42,4 +42,12 @@ public abstract class Generator {
         this.id = id;
     }
 
+    public String getType() {
+        String type = this.getClass().getSimpleName();
+        if (type.contains("$")) {
+            type = type.substring(0, type.indexOf("$"));
+        }
+        return type.toUpperCase();
+    }
+
 }
