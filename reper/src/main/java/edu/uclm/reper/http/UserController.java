@@ -90,39 +90,34 @@ public class UserController {
 			if (request.getCookies() == null) {
 				return null;
 			}
-			Optional<Cookie> cookie = Arrays.stream(request.getCookies())
+			Optional<Cookie> sCookie = Arrays.stream(request.getCookies())
 					.filter(c -> "SESSION_TOKEN".equals(c.getName()))
 					.findFirst();
+			Optional<Cookie> rCookie = Arrays.stream(request.getCookies())
+					.filter(c -> "REFRESH_TOKEN".equals(c.getName()))
+					.findFirst();
 
-			if (cookie.isEmpty()) {
+			if (sCookie.isEmpty() && rCookie.isEmpty()) {
 				return null;
 			}
 
-			String token = cookie.get().getValue();
 			try {
+				String token = sCookie.get().getValue();
 				return this.userService.getUserEmail(Map.of("token", token));
 			} catch (Exception e) {
-				Optional<Cookie> refreshCookie = Arrays.stream(request.getCookies())
-						.filter(c -> "REFRESH_TOKEN".equals(c.getName()))
-						.findFirst();
-				
-				if (refreshCookie.isPresent()) {
-					String refreshTokenStr = refreshCookie.get().getValue();
+				if (rCookie.isPresent()) {
+					String refreshTokenStr = rCookie.get().getValue();
 					Map<String, String> requestData = Map.of(
 							"refreshToken", refreshTokenStr,
 							"email", "");
 					String resJson = this.userService.refreshToken(requestData);
-					
+
 					ObjectMapper mapper = new ObjectMapper();
 					JsonNode root = mapper.readTree(resJson);
 					String newToken = root.has("token") ? root.get("token").asText() : "";
-					String newRefreshToken = root.has("refreshToken") ? root.get("refreshToken").asText() : "";
 
 					if (!newToken.isEmpty()) {
 						response.addHeader(SET_COOKIE_HEADER, String.format(COOKIE_FORMAT, newToken));
-					}
-					if (!newRefreshToken.isEmpty()) {
-						response.addHeader(SET_COOKIE_HEADER, String.format(REFRESH_COOKIE_FORMAT, newRefreshToken));
 					}
 
 					if (!newToken.isEmpty()) {
