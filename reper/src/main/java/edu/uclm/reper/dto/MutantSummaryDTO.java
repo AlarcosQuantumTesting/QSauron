@@ -3,12 +3,20 @@ package edu.uclm.reper.dto;
 public class MutantSummaryDTO {
     private int mutantIndex;
     private OperatorSummaryDTO operator;
-    
-    public MutantSummaryDTO() {}
+    private String oracleName;
+
+    public MutantSummaryDTO() {
+    }
 
     public MutantSummaryDTO(int mutantIndex, OperatorSummaryDTO operator) {
         this.mutantIndex = mutantIndex;
         this.operator = operator;
+    }
+
+    public MutantSummaryDTO(int mutantIndex, OperatorSummaryDTO operator, String oracleName) {
+        this.mutantIndex = mutantIndex;
+        this.operator = operator;
+        this.oracleName = oracleName;
     }
 
     public int getMutantIndex() {
@@ -25,5 +33,13 @@ public class MutantSummaryDTO {
 
     public void setOperator(OperatorSummaryDTO operator) {
         this.operator = operator;
+    }
+
+    public String getOracleName() {
+        return oracleName;
+    }
+
+    public void setOracleName(String oracleName) {
+        this.oracleName = oracleName;
     }
 }

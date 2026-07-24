@@ -51,6 +51,10 @@ public class Mutant {
     @JoinColumn(name = "operator_id")
     private Operator operator;
 
+    @Column(name = "oracle_name")
+    @JsonProperty("oracleName")
+    private String oracleName;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumns({
             @JoinColumn(name = "mutant_cycle_id", referencedColumnName = "id"),
@@ -136,6 +140,14 @@ public class Mutant {
 
     public void setMutantResults(List<MutantResult> mutantResults) {
         this.mutantResults = mutantResults;
+    }
+
+    public String getOracleName() {
+        return oracleName;
+    }
+
+    public void setOracleName(String oracleName) {
+        this.oracleName = oracleName;
     }
 
 }

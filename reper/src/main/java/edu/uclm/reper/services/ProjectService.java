@@ -25,6 +25,8 @@ import edu.uclm.reper.model.Project;
 import edu.uclm.reper.model.QCircuit;
 import edu.uclm.reper.model.QProgram;
 import edu.uclm.reper.model.TestSuite;
+import edu.uclm.reper.model.TestCase;
+import edu.uclm.reper.model.MutantResult;
 import edu.uclm.reper.model.User;
 import edu.uclm.reper.repository.OperatorRepository;
 import edu.uclm.reper.repository.ProjectRepository;
@@ -138,7 +140,7 @@ public class ProjectService {
                                 opDto = new OperatorSummaryDTO(mutant.getOperator().getName());
                             }
                             return new MutantSummaryDTO(mutant.getIndex(),
-                                    opDto);
+                                    opDto, mutant.getOracleName());
                         }).collect(Collectors.toList());
                     }
                     return new MutantCycleSummaryDTO(cycle.getId(), cycle.getName(), mutantDTOs);
@@ -405,6 +407,17 @@ public class ProjectService {
                 }
             }
         }
+
+        if (project.getTestSuites() != null) {
+            for (TestSuite ts : project.getTestSuites()) {
+                ts.setProject(project);
+                if (ts.getTestCases() != null) {
+                    for (TestCase tc : ts.getTestCases()) {
+                        tc.setTestSuite(ts);
+                    }
+                }
+            }
+        }
     }
 
     private void updateProjectFields(Project existing, Project incoming) {
@@ -415,15 +428,56 @@ public class ProjectService {
             QProgram incomingProgram = incoming.getQProgram();
             prepareQProgram(incomingProgram); // Fix QCircuit reference before attaching
 
-            // Save/Merge QProgram explicitly and update reference
-            // This ensures 'existing' refers to a managed QProgram, preventing duplicate
-            // entry on cascade
-            QProgram savedProgram = qProgramRepository.save(incomingProgram);
-            existing.setQProgram(savedProgram);
+            QProgram existingProgram = existing.getQProgram();
+            if (existingProgram != null) {
+                existingProgram.setQubits(incomingProgram.getQubits());
+                existingProgram.setShots(incomingProgram.getShots());
+                existingProgram.setInputQubits(incomingProgram.getInputQubits());
+                existingProgram.setOutputQubits(incomingProgram.getOutputQubits());
+
+                if (incomingProgram.getQuirkCircuit() != null) {
+                    existingProgram.setQuirkCircuit(incomingProgram.getQuirkCircuit());
+                }
+
+                if (incomingProgram.getGenerator() != null) {
+                    existingProgram.setGenerator(incomingProgram.getGenerator());
+                }
+
+                if (incomingProgram.getQCodes() != null && !incomingProgram.getQCodes().isEmpty()) {
+                    existingProgram.setQCodes(incomingProgram.getQCodes());
+                }
+
+                if (incomingProgram.getExpressions() != null && !incomingProgram.getExpressions().isEmpty()) {
+                    existingProgram.setExpressions(incomingProgram.getExpressions());
+                }
+
+                QProgram savedProgram = qProgramRepository.save(existingProgram);
+                existing.setQProgram(savedProgram);
+            } else {
+                QProgram savedProgram = qProgramRepository.save(incomingProgram);
+                existing.setQProgram(savedProgram);
+            }
         }
 
         // Update MutantCycles
         updateMutantCycles(existing, incoming.getMutantCycles());
+
+        // Update TestSuites
+        if (incoming.getTestSuites() != null) {
+            if (existing.getTestSuites() == null) {
+                existing.setTestSuites(new ArrayList<>());
+            }
+            existing.getTestSuites().clear();
+            for (TestSuite ts : incoming.getTestSuites()) {
+                ts.setProject(existing);
+                if (ts.getTestCases() != null) {
+                    for (TestCase tc : ts.getTestCases()) {
+                        tc.setTestSuite(ts);
+                    }
+                }
+                existing.getTestSuites().add(ts);
+            }
+        }
 
         // Update Users
         if (incoming.getUsers() != null) {
@@ -542,6 +596,7 @@ public class ProjectService {
             }
             if (existingM != null) {
                 existingM.setMutantCycle(existingCycle);
+                existingM.setOracleName(newM.getOracleName());
 
                 if (newM.getMutantResults() != null) {
                     existingM.setMutantResults(newM.getMutantResults());
@@ -590,7 +645,19 @@ public class ProjectService {
         if (circuit.getId() != null) {
             Optional<QCircuit> existing = qCircuitRepository.findById(circuit.getId());
             if (existing.isPresent()) {
-                program.setQuirkCircuit(existing.get());
+                // Actualizar la entidad gestionada con los datos entrantes (edición del
+                // usuario) en vez de descartarlos quedándose con la versión antigua de
+                // la BD, que hacía que cualquier cambio del circuito nunca se guardara.
+                QCircuit managed = existing.get();
+                // No machacar el circuito guardado con un code nulo (p. ej. JSON
+                // inválido a medio editar); en ese caso se conserva el anterior.
+                if (circuit.getCode() != null) {
+                    managed.setCode(circuit.getCode());
+                }
+                managed.setQbits(circuit.getQbits());
+                managed.setMutableColumns(circuit.getMutableColumns());
+                managed.setMutableRows(circuit.getMutableRows());
+                program.setQuirkCircuit(qCircuitRepository.save(managed));
             } else {
                 program.setQuirkCircuit(qCircuitRepository.save(circuit));
             }
@@ -638,6 +705,7 @@ public class ProjectService {
             if (existingM != null) {
                 // Update existing
                 existingM.setMutantCycle(cycle);
+                existingM.setOracleName(newM.getOracleName());
                 if (newM.getMutantResults() != null) {
                     for (var r : newM.getMutantResults())
                         r.setMutant(existingM);
@@ -694,19 +762,24 @@ public class ProjectService {
                 target = currentMapByIndex.get(batchMutant.getIndex());
             }
 
-            if (target != null && batchMutant.getMutantResults() != null) {
-                // Ensure bidirectional relationship is maintained for newly added results
-                for (var result : batchMutant.getMutantResults()) {
-                    result.setMutant(target);
+            if (target != null) {
+                if (batchMutant.getOracleName() != null) {
+                    target.setOracleName(batchMutant.getOracleName());
                 }
+                if (batchMutant.getMutantResults() != null) {
+                    // Ensure bidirectional relationship is maintained for newly added results
+                    for (var result : batchMutant.getMutantResults()) {
+                        result.setMutant(target);
+                    }
 
-                // Clear existing and add new to avoid duplicates, or just set it
-                if (target.getMutantResults() == null) {
-                    target.setMutantResults(new ArrayList<>());
-                } else {
-                    target.getMutantResults().clear();
+                    // Clear existing and add new to avoid duplicates, or just set it
+                    if (target.getMutantResults() == null) {
+                        target.setMutantResults(new ArrayList<>());
+                    } else {
+                        target.getMutantResults().clear();
+                    }
+                    target.getMutantResults().addAll(batchMutant.getMutantResults());
                 }
-                target.getMutantResults().addAll(batchMutant.getMutantResults());
             }
         }
 
@@ -715,5 +788,138 @@ public class ProjectService {
 
     public void deleteMutantCycle(String projectId, int cycleId) throws Exception {
         mutantCycleRepository.deleteById(new MutantCycleId(projectId, cycleId));
+    }
+
+    public void createDemoProjectForUser(User user) {
+        try {
+            java.io.InputStream is = getClass().getClassLoader().getResourceAsStream("demo.json");
+            if (is == null) {
+                throw new RuntimeException("demo.json not found in classpath");
+            }
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            mapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            Project project = mapper.readValue(is, Project.class);
+
+            // 1. Generate new UUIDs and reset IDs to avoid collision
+            String newProjectId = java.util.UUID.randomUUID().toString();
+            project.setId(newProjectId);
+
+            // Clean users
+            project.setUsers(new java.util.ArrayList<>());
+            project.getUsers().add(user);
+
+            // Notes: reset IDs
+            if (project.getNotes() != null) {
+                for (var note : project.getNotes()) {
+                    note.setId(java.util.UUID.randomUUID().toString());
+                }
+            }
+
+            // QProgram
+            if (project.getQProgram() != null) {
+                QProgram qp = project.getQProgram();
+                qp.setId(java.util.UUID.randomUUID().toString());
+                if (qp.getQuirkCircuit() != null) {
+                    qp.getQuirkCircuit().setId(java.util.UUID.randomUUID().toString());
+                }
+                if (qp.getGenerator() != null) {
+                    qp.getGenerator().setId(0);
+                }
+                if (qp.getQCodes() != null) {
+                    for (var qc : qp.getQCodes()) {
+                        qc.setId(0);
+                    }
+                }
+                if (qp.getExpressions() != null) {
+                    for (var expr : qp.getExpressions()) {
+                        expr.setId(null);
+                    }
+                }
+            }
+
+            // TestSuites & TestCases
+            java.util.Map<String, TestCase> testCaseMap = new java.util.HashMap<>();
+
+            if (project.getTestSuites() != null) {
+                for (TestSuite ts : project.getTestSuites()) {
+                    ts.setId(java.util.UUID.randomUUID().toString());
+                    ts.setProject(project);
+                    if (ts.getTestCases() != null) {
+                        for (TestCase tc : ts.getTestCases()) {
+                            String oldTcId = tc.getId();
+                            String newTcId = java.util.UUID.randomUUID().toString();
+                            tc.setId(newTcId);
+                            tc.setTestSuite(ts);
+                            testCaseMap.put(oldTcId, tc);
+                        }
+                    }
+                }
+            }
+
+            // MutantCycles, Mutants, MutantResults
+            if (project.getMutantCycles() != null) {
+                for (MutantCycle mc : project.getMutantCycles()) {
+                    mc.setProject(project);
+                    // mc.id can remain the same because it's a composite key with project_id
+                    if (mc.getMutants() != null) {
+                        for (Mutant m : mc.getMutants()) {
+                            m.setId(0); // auto-generated
+                            m.setMutantCycle(mc);
+                            if (m.getQuirkCircuit() != null) {
+                                QProgram mqp = m.getQuirkCircuit();
+                                mqp.setId(java.util.UUID.randomUUID().toString());
+                                if (mqp.getQuirkCircuit() != null) {
+                                    mqp.getQuirkCircuit().setId(java.util.UUID.randomUUID().toString());
+                                }
+                                if (mqp.getGenerator() != null) {
+                                    mqp.getGenerator().setId(0);
+                                }
+                                if (mqp.getQCodes() != null) {
+                                    for (var qc : mqp.getQCodes()) {
+                                        qc.setId(0);
+                                    }
+                                }
+                                if (mqp.getExpressions() != null) {
+                                    for (var expr : mqp.getExpressions()) {
+                                        expr.setId(null);
+                                    }
+                                }
+                            }
+                            if (m.getMutantResults() != null) {
+                                for (MutantResult mr : m.getMutantResults()) {
+                                    mr.setMutant(m);
+                                    // Map test case reference back
+                                    if (mr.getTestCase() != null && mr.getTestCase().getId() != null) {
+                                        TestCase newTc = testCaseMap.get(mr.getTestCase().getId());
+                                        mr.setTestCase(newTc);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (mc.getExecConfig() != null) {
+                        mc.getExecConfig().setMutantCycle(mc);
+                        mc.getExecConfig().setId(java.util.UUID.randomUUID().toString());
+                        if (mc.getExecConfig().getKillingMatrix() != null) {
+                            mc.getExecConfig().getKillingMatrix().setId(0);
+                            if (mc.getExecConfig().getKillingMatrix().getMutantResults() != null) {
+                                for (MutantResult mr : mc.getExecConfig().getKillingMatrix().getMutantResults()) {
+                                    if (mr.getTestCase() != null && mr.getTestCase().getId() != null) {
+                                        TestCase newTc = testCaseMap.get(mr.getTestCase().getId());
+                                        mr.setTestCase(newTc);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Save the project!
+            saveProject(project);
+
+        } catch (Exception e) {
+            throw new RuntimeException("Error creating demo project: " + e.getMessage(), e);
+        }
     }
 }

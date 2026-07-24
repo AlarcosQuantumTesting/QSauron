@@ -35,6 +35,15 @@ public class ExecConfig {
     @Column(name = "exec_algorithm")
     private String execAlgorithm;
 
+    @Column(name = "tolerated_error")
+    private Double toleratedError;
+
+    @Column(name = "zombie_error")
+    private Double zombieError;
+
+    @Column(name = "shots")
+    private Integer shots;
+
     @OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "killing_matrix_id")
     private KillingMatrix killingMatrix;
@@ -87,6 +96,30 @@ public class ExecConfig {
 
     public void setExecAlgorithm(String execAlgorithm) {
         this.execAlgorithm = execAlgorithm;
+    }
+
+    public Double getToleratedError() {
+        return toleratedError;
+    }
+
+    public void setToleratedError(Double toleratedError) {
+        this.toleratedError = toleratedError;
+    }
+
+    public Double getZombieError() {
+        return zombieError;
+    }
+
+    public void setZombieError(Double zombieError) {
+        this.zombieError = zombieError;
+    }
+
+    public Integer getShots() {
+        return shots;
+    }
+
+    public void setShots(Integer shots) {
+        this.shots = shots;
     }
 
     public KillingMatrix getKillingMatrix() {

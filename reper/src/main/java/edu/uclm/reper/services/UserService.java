@@ -18,6 +18,9 @@ public class UserService {
     @Autowired
     private AlarideProxy alarideProxy;
 
+    @Autowired
+    private ProjectService projectService;
+
     public void create(Map<String, String> user) throws Exception {
         try {
             alarideProxy.create(user.get("email"), user.get("pwd"));
@@ -32,6 +35,11 @@ public class UserService {
             throw new Exception("Error saving user to repository: " + e.getMessage(), e);
         }
 
+        try {
+            projectService.createDemoProjectForUser(u);
+        } catch (Exception e) {
+            throw new Exception("Error provisioning demo project for new user: " + e.getMessage(), e);
+        }
     }
 
     public String login(Map<String, String> user) throws Exception {
