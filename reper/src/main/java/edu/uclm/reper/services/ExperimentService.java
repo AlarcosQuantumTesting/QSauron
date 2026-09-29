@@ -1,5 +1,6 @@
 package edu.uclm.reper.services;
 
+import java.net.ConnectException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -23,6 +24,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -487,9 +489,20 @@ public class ExperimentService {
                         stratReq,
                         List.class);
                 break;
-            } catch (Exception ex) {
-                if (attempts >= 2) throw ex;
-                logger.warn("Advertencia: error al ejecutar mutantes en qiskitexec ({}). Reintentando...", ex.getMessage());
+            } catch (ResourceAccessException ex) {
+                Throwable cause = ex;
+                boolean isConnectException = false;
+                while (cause != null) {
+                    if (cause instanceof ConnectException) {
+                        isConnectException = true;
+                        break;
+                    }
+                    cause = cause.getCause();
+                }
+                if (!isConnectException || attempts >= 2) {
+                    throw ex;
+                }
+                logger.warn("Advertencia: error de conexión al conectar con qiskitexec ({}). Reintentando...", ex.getMessage());
                 try {
                     Thread.sleep(2000);
                 } catch (InterruptedException ie) {
