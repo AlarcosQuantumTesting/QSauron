@@ -139,7 +139,10 @@ public class ExperimentService {
             }
 
             for (CircuitConfigDTO cc : configs) {
+                long tCircuitStart = System.nanoTime();
                 processSingleCircuit(experimentId, cc, dto);
+                long circuitTotalMs = (System.nanoTime() - tCircuitStart) / 1_000_000;
+                logger.info("[PERF] exp={} circuit={} totalMs={}", experimentId, cc.getProjectId(), circuitTotalMs);
 
                 // Use simple findById without heavy JOIN FETCH
                 Optional<Experiment> expOpt = experimentRepository.findById(experimentId);
@@ -183,14 +186,22 @@ public class ExperimentService {
         String outputQubits = cc.getOutputQubits() != null ? cc.getOutputQubits().trim() : "";
 
         // 1. Generate mutants in qumugen
+        long tGenStart = System.nanoTime();
         List<Map<String, Object>> generatedMutantCircuits = generateMutantsInQumugen(qProgram, dto.getOperatorNames(),
                 inputQubits);
+        long generateMs = (System.nanoTime() - tGenStart) / 1_000_000;
 
         // 2. Build and save new MutantCycle
+        long tCycleStart = System.nanoTime();
         MutantCycle newCycle = createAndSaveMutantCycle(project, experimentId, dto, generatedMutantCircuits);
+        long createCycleMs = (System.nanoTime() - tCycleStart) / 1_000_000;
+
+        int mutantCount = generatedMutantCircuits != null ? generatedMutantCircuits.size() : 0;
+        logger.info("[PERF] exp={} circuit={} generateMs={} createCycleMs={} mutants={}",
+                experimentId, cc.getProjectId(), generateMs, createCycleMs, mutantCount);
 
         // 3. Execute original circuit & mutants in qiskitexec
-        executeCycleInQiskitExec(project, newCycle, inputQubits, outputQubits, dto);
+        executeCycleInQiskitExec(experimentId, project, newCycle, inputQubits, outputQubits, dto);
     }
 
     private MutantCycle createAndSaveMutantCycle(Project project, String experimentId, CreateExperimentDTO dto,
@@ -333,25 +344,32 @@ public class ExperimentService {
         }
     }
 
-    private void executeCycleInQiskitExec(Project project, MutantCycle cycle, String inputQubits, String outputQubits,
+    private void executeCycleInQiskitExec(String experimentId, Project project, MutantCycle cycle, String inputQubits, String outputQubits,
             CreateExperimentDTO dto) throws Exception {
         try {
+            long tOrigCodeStart = System.nanoTime();
             String originalWholeCode = getOriginalQiskitCode(project, outputQubits, dto.getShots());
+            long originalCodeMs = (System.nanoTime() - tOrigCodeStart) / 1_000_000;
 
+            long tOrigExecStart = System.nanoTime();
             List<?> originalResults = executeOriginalInQiskitExec(project, originalWholeCode, inputQubits, outputQubits,
                     dto.getExecAlgorithm());
+            long originalExecMs = (System.nanoTime() - tOrigExecStart) / 1_000_000;
 
             List<Mutant> mutants = cycle.getMutants();
+            int chunkSize = calculateChunkSize(project);
+            logger.info("[PERF] exp={} circuit={} originalCodeMs={} originalExecMs={} chunkSize={}",
+                    experimentId, project.getId(), originalCodeMs, originalExecMs, chunkSize);
+
             if (mutants == null || mutants.isEmpty()) {
                 return;
             }
 
-            int chunkSize = calculateChunkSize(project);
             for (int start = 0; start < mutants.size(); start += chunkSize) {
                 int end = Math.min(start + chunkSize, mutants.size());
                 List<Mutant> batch = mutants.subList(start, end);
 
-                executeAndProcessMutantBatch(project, cycle, batch, originalResults, inputQubits, outputQubits, dto);
+                executeAndProcessMutantBatch(experimentId, project, cycle, batch, originalResults, inputQubits, outputQubits, dto);
             }
         } catch (Exception e) {
             logger.error("Error executing cycle in qiskitexec: {}", e.getMessage(), e);
@@ -415,7 +433,7 @@ public class ExperimentService {
         return chunkSize;
     }
 
-    private void executeAndProcessMutantBatch(Project project, MutantCycle cycle, List<Mutant> batch,
+    private void executeAndProcessMutantBatch(String experimentId, Project project, MutantCycle cycle, List<Mutant> batch,
             List<?> originalResults, String inputQubits, String outputQubits, CreateExperimentDTO dto) throws Exception {
         List<Map<String, Object>> batchFormatted = formatMutantBatch(project, batch);
 
@@ -426,7 +444,9 @@ public class ExperimentService {
         HttpEntity<Map<String, Object>> multCodeReq = new HttpEntity<>(multCodeBody, createJsonHeaders());
         String multCodeUrl = qumugenUrl + "/qumugen/getMultipleQiskitCode?shots=" + dto.getShots()
                 + "&qiskitTemplate=qiskitTemplateWindows.txt";
+        long tCodeGenStart = System.nanoTime();
         ResponseEntity<List> multCodeResp = restTemplate.exchange(multCodeUrl, HttpMethod.PUT, multCodeReq, List.class);
+        long codeGenMs = (System.nanoTime() - tCodeGenStart) / 1_000_000;
         List<?> mutantCodes = multCodeResp.getBody();
 
         // Execute batch with strategy
@@ -444,6 +464,7 @@ public class ExperimentService {
         HttpEntity<Map<String, Object>> stratReq = new HttpEntity<>(stratBody, createJsonHeaders());
         ResponseEntity<List> stratResp = null;
         int attempts = 0;
+        long tStratStart = System.nanoTime();
         while (attempts < 2) {
             try {
                 attempts++;
@@ -463,11 +484,19 @@ public class ExperimentService {
                 }
             }
         }
+        long strategyMs = (System.nanoTime() - tStratStart) / 1_000_000;
 
+        long saveMs = 0;
         List<List<Map<String, Object>>> stratResults = stratResp != null ? stratResp.getBody() : null;
         if (stratResults != null) {
+            long tSaveStart = System.nanoTime();
             processAndSaveBatchResults(project.getId(), cycle.getId(), batch, stratResults);
+            saveMs = (System.nanoTime() - tSaveStart) / 1_000_000;
         }
+
+        List<Integer> mutantIndices = batch.stream().map(Mutant::getIndex).collect(Collectors.toList());
+        logger.info("[PERF] exp={} mutants={} codeGenMs={} strategyMs={} attempts={} saveMs={}",
+                experimentId, mutantIndices, codeGenMs, strategyMs, attempts, saveMs);
     }
 
     private List<Map<String, Object>> formatMutantBatch(Project project, List<Mutant> batch) {
