@@ -6,6 +6,9 @@ public class ProjectSummaryDTO {
     private String id;
     private String name;
     private List<MutantCycleSummaryDTO> mutantCycles;
+    private Integer qubits;
+    private String inputQubits;
+    private String outputQubits;
 
     public ProjectSummaryDTO() {}
 
@@ -15,27 +18,21 @@ public class ProjectSummaryDTO {
         this.mutantCycles = mutantCycles;
     }
 
-    public String getId() {
-        return id;
-    }
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
 
-    public void setId(String id) {
-        this.id = id;
-    }
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
 
-    public String getName() {
-        return name;
-    }
+    public List<MutantCycleSummaryDTO> getMutantCycles() { return mutantCycles; }
+    public void setMutantCycles(List<MutantCycleSummaryDTO> mutantCycles) { this.mutantCycles = mutantCycles; }
 
-    public void setName(String name) {
-        this.name = name;
-    }
+    public Integer getQubits() { return qubits; }
+    public void setQubits(Integer qubits) { this.qubits = qubits; }
 
-    public List<MutantCycleSummaryDTO> getMutantCycles() {
-        return mutantCycles;
-    }
+    public String getInputQubits() { return inputQubits; }
+    public void setInputQubits(String inputQubits) { this.inputQubits = inputQubits; }
 
-    public void setMutantCycles(List<MutantCycleSummaryDTO> mutantCycles) {
-        this.mutantCycles = mutantCycles;
-    }
+    public String getOutputQubits() { return outputQubits; }
+    public void setOutputQubits(String outputQubits) { this.outputQubits = outputQubits; }
 }

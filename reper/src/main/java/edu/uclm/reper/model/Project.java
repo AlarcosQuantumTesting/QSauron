@@ -41,7 +41,7 @@ public class Project {
     @JsonManagedReference("project-testSuites")
     private List<TestSuite> testSuites;
 
-    @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     @JoinColumn(name = "q_program_id")
     @JsonProperty("qProgram")
     private QProgram qProgram;

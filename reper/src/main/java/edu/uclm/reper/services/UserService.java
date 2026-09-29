@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import edu.uclm.reper.http.AlarideProxy;
+import edu.uclm.reper.model.Role;
 import edu.uclm.reper.model.User;
 import edu.uclm.reper.repository.UserRepository;
 
@@ -28,7 +29,7 @@ public class UserService {
             throw new Exception("Error creating user: " + e.getMessage(), e);
         }
 
-        User u = new User(user.get("email"));
+        User u = new User(user.get("email"), Role.USUARIO);
         try {
             userRepository.save(u);
         } catch (Exception e) {
@@ -84,6 +85,13 @@ public class UserService {
                 "email", email,
                 "newPassword", newPassword);
         alarideProxy.recoveryReset(data);
+    }
+
+    public User getUserProfile(String email) {
+        return userRepository.findById(email).orElseGet(() -> {
+            User newUser = new User(email, Role.USUARIO);
+            return userRepository.save(newUser);
+        });
     }
 
 }

@@ -7,8 +7,9 @@ import org.springframework.core.annotation.Order;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
+
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.List;
 
 @Configuration
 public class CorsConfig {
@@ -22,15 +23,23 @@ public class CorsConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
 
-        // Handle comma-separated list of origins
-        if (allowedOrigins.contains(",")) {
-            config.setAllowedOriginPatterns(Arrays.asList(allowedOrigins.split(",")));
-        } else {
-            config.setAllowedOriginPatterns(Collections.singletonList(allowedOrigins));
-        }
+        // Explicitly allow localhost and 127.0.0.1 on any port (4200, 4201, 8080, etc.) + wildcard patterns
+        config.setAllowedOriginPatterns(Arrays.asList(
+            "http://localhost:*",
+            "http://127.0.0.1:*",
+            "https://localhost:*",
+            "https://127.0.0.1:*",
+            "http://localhost:4200",
+            "http://localhost:4201",
+            "http://localhost:8080",
+            "http://localhost:8082",
+            "https://*.uclm.es*",
+            "*"
+        ));
 
-        config.addAllowedHeader("*");
-        config.addAllowedMethod("*");
+        config.setAllowedHeaders(Arrays.asList("*"));
+        config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"));
+        config.setExposedHeaders(Arrays.asList("Set-Cookie", "Authorization", "Access-Control-Allow-Origin", "Access-Control-Allow-Credentials"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);

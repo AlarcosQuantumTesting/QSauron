@@ -56,6 +56,11 @@ public class MutantCycle {
     @JsonBackReference("project-mutantCycles")
     private Project project;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "experiment_id")
+    @JsonBackReference("experiment-mutantCycles")
+    private Experiment experiment;
+
     // Constructors
     public MutantCycle() {
     }
@@ -113,4 +118,12 @@ public class MutantCycle {
         this.project = project;
     }
 
+
+    public Experiment getExperiment() {
+        return experiment;
+    }
+
+    public void setExperiment(Experiment experiment) {
+        this.experiment = experiment;
+    }
 }

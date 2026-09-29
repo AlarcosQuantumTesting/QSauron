@@ -76,7 +76,16 @@ public class UserController {
 			if (!refreshToken.isEmpty()) {
 				response.addHeader(SET_COOKIE_HEADER, String.format(REFRESH_COOKIE_FORMAT, refreshToken));
 			}
-			return ResponseEntity.ok(mapper.convertValue(root, Object.class));
+
+			@SuppressWarnings("unchecked")
+			Map<String, Object> responseMap = mapper.convertValue(root, Map.class);
+			String email = user.get("email");
+			if (email != null && !email.isEmpty()) {
+				User u = this.userService.getUserProfile(email);
+				responseMap.put("role", u.getRole().name());
+				responseMap.put("isAdmin", u.isAdmin());
+			}
+			return ResponseEntity.ok(responseMap);
 
 		} catch (Exception e) {
 			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid credentials");
@@ -85,10 +94,10 @@ public class UserController {
 	}
 
 	@PostMapping("/getUser")
-	public String getUserEmail(HttpServletRequest request, HttpServletResponse response) {
+	public ResponseEntity<?> getUser(HttpServletRequest request, HttpServletResponse response) {
 		try {
 			if (request.getCookies() == null) {
-				return null;
+				return ResponseEntity.ok(null);
 			}
 			Optional<Cookie> sCookie = Arrays.stream(request.getCookies())
 					.filter(c -> "SESSION_TOKEN".equals(c.getName()))
@@ -98,14 +107,21 @@ public class UserController {
 					.findFirst();
 
 			if (sCookie.isEmpty() && rCookie.isEmpty()) {
-				return null;
+				return ResponseEntity.ok(null);
 			}
 
-			try {
-				String token = sCookie.get().getValue();
-				return this.userService.getUserEmail(Map.of("token", token));
-			} catch (Exception e) {
-				if (rCookie.isPresent()) {
+			String email = null;
+			if (sCookie.isPresent()) {
+				try {
+					String token = sCookie.get().getValue();
+					email = this.userService.getUserEmail(Map.of("token", token));
+				} catch (Exception e) {
+					// Token de sesión inválido o expirado
+				}
+			}
+
+			if ((email == null || email.isEmpty()) && rCookie.isPresent()) {
+				try {
 					String refreshTokenStr = rCookie.get().getValue();
 					Map<String, String> requestData = Map.of(
 							"refreshToken", refreshTokenStr,
@@ -118,16 +134,25 @@ public class UserController {
 
 					if (!newToken.isEmpty()) {
 						response.addHeader(SET_COOKIE_HEADER, String.format(COOKIE_FORMAT, newToken));
+						email = this.userService.getUserEmail(Map.of("token", newToken));
 					}
-
-					if (!newToken.isEmpty()) {
-						return this.userService.getUserEmail(Map.of("token", newToken));
-					}
+				} catch (Exception ex) {
+					return ResponseEntity.ok(null);
 				}
-				return null;
 			}
+
+			if (email == null || email.isEmpty()) {
+				return ResponseEntity.ok(null);
+			}
+
+			User u = this.userService.getUserProfile(email);
+			return ResponseEntity.ok(Map.of(
+					"email", u.getId(),
+					"role", u.getRole().name(),
+					"isAdmin", u.isAdmin()));
+
 		} catch (Exception e) {
-			return null;
+			return ResponseEntity.ok(null);
 		}
 	}
 

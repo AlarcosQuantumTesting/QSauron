@@ -49,7 +49,7 @@ public class QProgram {
     @JsonDeserialize(using = IntArrayDeserializer.class)
     private int[] outputQubits;
 
-    @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     @JoinColumn(name = "circuit_id")
     @JsonProperty("qCircuit")
     private QCircuit quirkCircuit;

@@ -146,7 +146,27 @@ public class ProjectService {
                     return new MutantCycleSummaryDTO(cycle.getId(), cycle.getName(), mutantDTOs);
                 }).collect(Collectors.toList());
             }
-            return new ProjectSummaryDTO(project.getId(), project.getName(), cycleDTOs);
+            ProjectSummaryDTO pDto = new ProjectSummaryDTO(project.getId(), project.getName(), cycleDTOs);
+            if (project.getQProgram() != null) {
+                pDto.setQubits(project.getQProgram().getQubits());
+                if (project.getQProgram().getInputQubits() != null && project.getQProgram().getInputQubits().length > 0) {
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = 0; i < project.getQProgram().getInputQubits().length; i++) {
+                        if (i > 0) sb.append(",");
+                        sb.append(project.getQProgram().getInputQubits()[i]);
+                    }
+                    pDto.setInputQubits(sb.toString());
+                }
+                if (project.getQProgram().getOutputQubits() != null && project.getQProgram().getOutputQubits().length > 0) {
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = 0; i < project.getQProgram().getOutputQubits().length; i++) {
+                        if (i > 0) sb.append(",");
+                        sb.append(project.getQProgram().getOutputQubits()[i]);
+                    }
+                    pDto.setOutputQubits(sb.toString());
+                }
+            }
+            return pDto;
         }).collect(Collectors.toList());
     }
 
@@ -767,18 +787,17 @@ public class ProjectService {
                     target.setOracleName(batchMutant.getOracleName());
                 }
                 if (batchMutant.getMutantResults() != null) {
-                    // Ensure bidirectional relationship is maintained for newly added results
-                    for (var result : batchMutant.getMutantResults()) {
+                    List<MutantResult> incomingResults = new ArrayList<>(batchMutant.getMutantResults());
+                    for (var result : incomingResults) {
                         result.setMutant(target);
                     }
 
-                    // Clear existing and add new to avoid duplicates, or just set it
                     if (target.getMutantResults() == null) {
                         target.setMutantResults(new ArrayList<>());
                     } else {
                         target.getMutantResults().clear();
                     }
-                    target.getMutantResults().addAll(batchMutant.getMutantResults());
+                    target.getMutantResults().addAll(incomingResults);
                 }
             }
         }

@@ -42,7 +42,7 @@ public class Mutant {
     @JsonProperty("mutatedRow")
     private int row;
 
-    @OneToOne(fetch = FetchType.LAZY)
+    @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JoinColumn(name = "quirk_circuit_id")
     @JsonProperty("circuit")
     private QProgram quirkCircuit;
@@ -63,7 +63,7 @@ public class Mutant {
     @JsonBackReference("mutantCycle-mutants")
     private MutantCycle mutantCycle;
 
-    @OneToMany(mappedBy = "mutant", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "mutant", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
     @JsonProperty("mutantResults")
     @JsonManagedReference("mutant-results")
     private List<MutantResult> mutantResults;
@@ -150,4 +150,11 @@ public class Mutant {
         this.oracleName = oracleName;
     }
 
+    public boolean isKilled() {
+        return mutantResults != null && mutantResults.stream().anyMatch(r -> r.getResult() == Result.KILLED);
+    }
+
+    public boolean isZombie() {
+        return mutantResults != null && mutantResults.stream().anyMatch(r -> r.getResult() == Result.ZOMBIE);
+    }
 }

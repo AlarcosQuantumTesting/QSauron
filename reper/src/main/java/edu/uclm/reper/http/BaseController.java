@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import edu.uclm.reper.model.User;
 import edu.uclm.reper.services.UserService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -49,6 +50,24 @@ public abstract class BaseController {
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid session token");
         }
+    }
+
+    /**
+     * Valida que la petición contenga una cookie SESSION_TOKEN válida para el email
+     * dado y que el usuario tenga privilegios de administrador.
+     *
+     * @param request la petición HTTP entrante
+     * @param email   el email del usuario
+     * @return el objeto User validado con rol de administrador
+     * @throws ResponseStatusException 401 si el token no es válido, 403 si no es administrador
+     */
+    protected User validateAdmin(HttpServletRequest request, String email) {
+        validateCookie(request, email);
+        User user = this.userService.getUserProfile(email);
+        if (!user.isAdmin()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin privileges required");
+        }
+        return user;
     }
 
     /**

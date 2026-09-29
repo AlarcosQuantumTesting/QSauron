@@ -16,6 +16,9 @@ import edu.uclm.reper.model.Project;
 @Repository
 public interface ProjectRepository extends JpaRepository<Project, String> {
 
+    @Query("SELECT p FROM Project p LEFT JOIN FETCH p.qProgram q LEFT JOIN FETCH q.quirkCircuit WHERE p.id = :id")
+    java.util.Optional<Project> findByIdWithQProgram(@Param("id") String id);
+
     /**
      * Find projects by name containing the given string (case insensitive)
      */
