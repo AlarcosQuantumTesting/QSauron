@@ -11,6 +11,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -85,16 +86,26 @@ public class ExperimentService {
     @Value("${app.qiskitexec.url:http://localhost:8502}")
     private String qiskitexecUrl;
 
-    @Value("${app.qiskitexec.batch-size:1}")
-    private int batchSize = 1;
+    @Value("${app.qiskitexec.batch-size:32}")
+    private int batchSize = 32;
+
+    @Value("${app.qiskitexec.max-programs-per-request:128}")
+    private int maxProgramsPerRequest;
+
+    @Value("${app.qiskitexec.read-timeout-seconds:900}")
+    private int readTimeoutSeconds;
 
     private RestTemplate restTemplate;
 
-    public ExperimentService() {
+    @PostConstruct
+    public void initRestTemplate() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(30000);
-        factory.setReadTimeout(300000);
+        factory.setReadTimeout(this.readTimeoutSeconds * 1000);
         this.restTemplate = new RestTemplate(factory);
+    }
+
+    public ExperimentService() {
     }
 
     public Experiment createExperiment(CreateExperimentDTO dto, String userId) throws Exception {
@@ -357,7 +368,7 @@ public class ExperimentService {
             long originalExecMs = (System.nanoTime() - tOrigExecStart) / 1_000_000;
 
             List<Mutant> mutants = cycle.getMutants();
-            int chunkSize = calculateChunkSize(project);
+            int chunkSize = calculateChunkSize(inputQubits);
             logger.info("[PERF] exp={} circuit={} originalCodeMs={} originalExecMs={} chunkSize={}",
                     experimentId, project.getId(), originalCodeMs, originalExecMs, chunkSize);
 
@@ -422,15 +433,17 @@ public class ExperimentService {
         return origExecResp.getBody();
     }
 
-    private int calculateChunkSize(Project project) {
-        int qubits = (project.getQProgram() != null && project.getQProgram().getQubits() > 0)
-                ? project.getQProgram().getQubits()
-                : 1;
-        int chunkSize = this.batchSize > 0 ? this.batchSize : 1;
-        if (Math.pow(2, qubits) > chunkSize) {
-            chunkSize = 1;
+    private int calculateChunkSize(String inputQubits) {
+        int inputCount = 0;
+        if (inputQubits != null && !inputQubits.trim().isEmpty()) {
+            for (String part : inputQubits.split(",")) {
+                if (!part.trim().isEmpty()) {
+                    inputCount++;
+                }
+            }
         }
-        return chunkSize;
+        int variants = 1 << Math.min(inputCount, 20);
+        return Math.max(1, Math.min(this.batchSize, this.maxProgramsPerRequest / variants));
     }
 
     private void executeAndProcessMutantBatch(String experimentId, Project project, MutantCycle cycle, List<Mutant> batch,
