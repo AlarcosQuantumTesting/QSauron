@@ -219,6 +219,7 @@ public class ExperimentService {
 
     private MutantCycle createAndSaveMutantCycle(Project project, String experimentId, CreateExperimentDTO dto,
             List<Map<String, Object>> generatedMutants) {
+        long tCyclesStart = System.nanoTime();
         List<MutantCycle> existingCycles = mutantCycleRepository.findByProjectId(project.getId());
         int nextCycleId = 1;
         if (existingCycles != null && !existingCycles.isEmpty()) {
@@ -228,14 +229,16 @@ public class ExperimentService {
                 }
             }
         }
+        long findCyclesMs = (System.nanoTime() - tCyclesStart) / 1_000_000;
 
         MutantCycle newCycle = new MutantCycle(new Date());
         newCycle.setId(nextCycleId);
         newCycle.setName(dto.getName() + " - " + project.getName());
         newCycle.setProject(project);
 
-        Optional<Experiment> expOpt = experimentRepository.findByIdWithDetails(experimentId);
-        expOpt.ifPresent(newCycle::setExperiment);
+        long tExpStart = System.nanoTime();
+        newCycle.setExperiment(experimentRepository.getReferenceById(experimentId));
+        long findExpMs = (System.nanoTime() - tExpStart) / 1_000_000;
 
         ExecConfig cycleExecConfig = new ExecConfig(new Date(), dto.getMachine(), dto.getExecAlgorithm());
         cycleExecConfig.setId(UUID.randomUUID().toString());
@@ -244,6 +247,11 @@ public class ExperimentService {
         cycleExecConfig.setShots(dto.getShots());
         cycleExecConfig.setMutantCycle(newCycle);
         newCycle.setExecConfig(cycleExecConfig);
+
+        long tBuildStart = System.nanoTime();
+        Map<String, Operator> opsByName = operatorRepository.findAll().stream()
+                .filter(o -> o.getName() != null)
+                .collect(Collectors.toMap(Operator::getName, o -> o, (a, b) -> a));
 
         QProgram qProgram = project.getQProgram();
         List<Mutant> mutantsList = new ArrayList<>();
@@ -255,8 +263,10 @@ public class ExperimentService {
 
             String opName = (String) mcData.get("mutationOperator");
             if (opName != null) {
-                Optional<Operator> opOpt = operatorRepository.findByName(opName);
-                opOpt.ifPresent(m::setOperator);
+                Operator op = opsByName.get(opName);
+                if (op != null) {
+                    m.setOperator(op);
+                }
             }
 
             if (mcData.get("mutatedColumn") != null) {
@@ -291,8 +301,15 @@ public class ExperimentService {
             mutantsList.add(m);
         }
         newCycle.setMutants(mutantsList);
+        long buildMs = (System.nanoTime() - tBuildStart) / 1_000_000;
 
-        return mutantCycleRepository.save(newCycle);
+        long tSaveStart = System.nanoTime();
+        MutantCycle saved = mutantCycleRepository.save(newCycle);
+        long saveMs = (System.nanoTime() - tSaveStart) / 1_000_000;
+
+        logger.info("[PERF] createCycle findCyclesMs={} findExpMs={} buildMs={} saveMs={}", findCyclesMs, findExpMs, buildMs, saveMs);
+
+        return saved;
     }
 
     private Map<String, Object> extractQuirkCode(JsonNode codeNode) {
