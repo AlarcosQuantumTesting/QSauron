@@ -94,7 +94,13 @@ public class ExperimentService {
     @Value("${app.qiskitexec.max-programs-per-request:128}")
     private int maxProgramsPerRequest;
 
-    @Value("${app.qiskitexec.read-timeout-seconds:900}")
+    @Value("${app.qiskitexec.runner-workers:8}")
+    private int runnerWorkers;
+
+    @Value("${app.qiskitexec.target-request-seconds:300}")
+    private int targetRequestSeconds;
+
+    @Value("${app.qiskitexec.read-timeout-seconds:3600}")
     private int readTimeoutSeconds;
 
     private RestTemplate restTemplate;
@@ -387,7 +393,7 @@ public class ExperimentService {
             long originalExecMs = (System.nanoTime() - tOrigExecStart) / 1_000_000;
 
             List<Mutant> mutants = cycle.getMutants();
-            int chunkSize = calculateChunkSize(inputQubits);
+            int chunkSize = calculateChunkSize(inputQubits, originalExecMs);
             logger.info("[PERF] exp={} circuit={} originalCodeMs={} originalExecMs={} chunkSize={}",
                     experimentId, project.getId(), originalCodeMs, originalExecMs, chunkSize);
 
@@ -399,7 +405,7 @@ public class ExperimentService {
                 int end = Math.min(start + chunkSize, mutants.size());
                 List<Mutant> batch = mutants.subList(start, end);
 
-                executeAndProcessMutantBatch(experimentId, project, cycle, batch, originalResults, inputQubits, outputQubits, dto);
+                executeBatchWithSplit(experimentId, project, cycle, batch, originalResults, inputQubits, outputQubits, dto);
             }
         } catch (Exception e) {
             logger.error("Error executing cycle in qiskitexec: {}", e.getMessage(), e);
@@ -452,7 +458,23 @@ public class ExperimentService {
         return origExecResp.getBody();
     }
 
-    private int calculateChunkSize(String inputQubits) {
+    private void executeBatchWithSplit(String experimentId, Project project, MutantCycle cycle, List<Mutant> batch,
+            List<?> originalResults, String inputQubits, String outputQubits, CreateExperimentDTO dto) throws Exception {
+        try {
+            executeAndProcessMutantBatch(experimentId, project, cycle, batch, originalResults, inputQubits, outputQubits, dto);
+        } catch (org.springframework.web.client.HttpStatusCodeException ex) {
+            if (ex.getStatusCode().value() == 504 && batch.size() > 1) {
+                logger.warn("[PERF] exp={} 504 en lote de {} mutantes; se divide en dos", experimentId, batch.size());
+                int mid = batch.size() / 2;
+                executeBatchWithSplit(experimentId, project, cycle, new ArrayList<>(batch.subList(0, mid)), originalResults, inputQubits, outputQubits, dto);
+                executeBatchWithSplit(experimentId, project, cycle, new ArrayList<>(batch.subList(mid, batch.size())), originalResults, inputQubits, outputQubits, dto);
+            } else {
+                throw ex;
+            }
+        }
+    }
+
+    private int calculateChunkSize(String inputQubits, long originalExecMs) {
         int inputCount = 0;
         if (inputQubits != null && !inputQubits.trim().isEmpty()) {
             for (String part : inputQubits.split(",")) {
@@ -462,7 +484,12 @@ public class ExperimentService {
             }
         }
         int variants = 1 << Math.min(inputCount, 20);
-        return Math.max(1, Math.min(this.batchSize, this.maxProgramsPerRequest / variants));
+        int byInputs = Math.max(1, Math.min(this.batchSize, this.maxProgramsPerRequest / variants));
+        long perProgramMs = Math.max(1L, originalExecMs);
+        int rounds = (int) Math.max(1L, (this.targetRequestSeconds * 1000L) / perProgramMs);
+        int byCost = Math.max(1, (Math.max(1, this.runnerWorkers) * rounds) / variants);
+        // cada petición ≈ ceil(chunk·variantes / W) rondas de ≈ originalExecMs
+        return Math.min(byInputs, byCost);
     }
 
     private void executeAndProcessMutantBatch(String experimentId, Project project, MutantCycle cycle, List<Mutant> batch,
