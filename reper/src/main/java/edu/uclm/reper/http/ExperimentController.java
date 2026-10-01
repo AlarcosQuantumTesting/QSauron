@@ -11,8 +11,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import edu.uclm.reper.dto.CreateExperimentDTO;
+import edu.uclm.reper.dto.CycleStatsDTO;
+import edu.uclm.reper.dto.ExperimentDetailDTO;
+import edu.uclm.reper.dto.ExperimentListItemDTO;
 import edu.uclm.reper.dto.ExperimentProgressDTO;
-import edu.uclm.reper.dto.ExperimentSummaryDTO;
 import edu.uclm.reper.model.Experiment;
 import edu.uclm.reper.services.ExperimentService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -52,7 +54,7 @@ public class ExperimentController extends BaseController {
         try {
             String email = body.get("email");
             this.validateCookie(req, email);
-            List<ExperimentSummaryDTO> list = experimentService.getUserExperiments(email);
+            List<ExperimentListItemDTO> list = experimentService.getUserExperiments(email);
             return ResponseEntity.ok(list);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -65,7 +67,7 @@ public class ExperimentController extends BaseController {
             String email = body.get("email");
             String experimentId = body.get("experimentId");
             this.validateCookie(req, email);
-            ExperimentSummaryDTO exp = experimentService.getExperimentDetails(experimentId);
+            ExperimentDetailDTO exp = experimentService.getExperimentDetails(experimentId, email);
             return ResponseEntity.ok(exp);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));

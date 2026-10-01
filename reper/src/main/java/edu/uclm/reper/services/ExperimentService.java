@@ -40,10 +40,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.uclm.reper.dto.CircuitConfigDTO;
 import edu.uclm.reper.dto.CreateExperimentDTO;
 import edu.uclm.reper.dto.ExperimentProgressDTO;
-import edu.uclm.reper.dto.ExperimentSummaryDTO;
-import edu.uclm.reper.dto.MutantCycleSummaryDTO;
-import edu.uclm.reper.dto.MutantSummaryDTO;
-import edu.uclm.reper.dto.OperatorSummaryDTO;
+import edu.uclm.reper.dto.CycleStatsDTO;
+import edu.uclm.reper.dto.ExperimentDetailDTO;
+import edu.uclm.reper.dto.ExperimentListItemDTO;
 import edu.uclm.reper.model.ExecConfig;
 import edu.uclm.reper.model.Experiment;
 import edu.uclm.reper.model.Mutant;
@@ -531,8 +530,9 @@ public class ExperimentService {
                     return r;
                 } else if ("failed".equals(state)) {
                     done = true;
-                    int code = ((Number) st.getOrDefault("httpStatus", 500)).intValue();
-                    String err = String.valueOf(st.get("error"));
+                    Object statusVal = st != null ? st.get("httpStatus") : null;
+                    int code = (statusVal instanceof Number n) ? n.intValue() : 500;
+                    String err = String.valueOf(st != null ? st.get("error") : null);
                     if (code >= 500) {
                         throw HttpServerErrorException.create(HttpStatusCode.valueOf(code), err, new HttpHeaders(),
                                 err.getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8);
@@ -741,21 +741,19 @@ public class ExperimentService {
     }
 
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
-    public List<ExperimentSummaryDTO> getUserExperiments(String userId) {
-        List<Experiment> list = experimentRepository.findByUserIdOrderByCreatedAtDesc(userId);
-        return list.stream().map(this::toSummaryDTO).collect(Collectors.toList());
+    public List<ExperimentListItemDTO> getUserExperiments(String userId) {
+        return experimentRepository.findListItemsByUserId(userId);
     }
 
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
-    public ExperimentSummaryDTO getExperimentDetails(String experimentId) throws Exception {
-        Optional<Experiment> expOpt = experimentRepository.findByIdWithDetails(experimentId);
-        if (expOpt.isEmpty())
-            throw new Exception("Experiment not found: " + experimentId);
-        return toSummaryDTO(expOpt.get());
-    }
+    public ExperimentDetailDTO getExperimentDetails(String experimentId, String userId) throws Exception {
+        Experiment e = experimentRepository.findByIdWithExecConfig(experimentId)
+                .orElseThrow(() -> new Exception("Experiment not found: " + experimentId));
+        if (e.getUser() != null && !e.getUser().getId().equals(userId)) {
+            throw new Exception("Unauthorized to view this experiment");
+        }
 
-    private ExperimentSummaryDTO toSummaryDTO(Experiment e) {
-        ExperimentSummaryDTO dto = new ExperimentSummaryDTO();
+        ExperimentDetailDTO dto = new ExperimentDetailDTO();
         dto.setId(e.getId());
         dto.setName(e.getName());
         dto.setStatus(e.getStatus());
@@ -770,46 +768,61 @@ public class ExperimentService {
             dto.setExecAlgorithm(e.getExecConfig().getExecAlgorithm());
         }
 
-        if (e.getMutantCycles() != null) {
-            List<MutantCycleSummaryDTO> cycleDTOs = e.getMutantCycles().stream().map(mc -> {
-                List<MutantSummaryDTO> mDTOs = new ArrayList<>();
-                int killed = 0;
-                int zombie = 0;
-                int alive = 0;
-                if (mc.getMutants() != null) {
-                    for (Mutant m : mc.getMutants()) {
-                        OperatorSummaryDTO opDto = m.getOperator() != null
-                                ? new OperatorSummaryDTO(m.getOperator().getName())
-                                : null;
-                        mDTOs.add(new MutantSummaryDTO(m.getIndex(), opDto, m.getOracleName()));
+        List<Object[]> headers = mutantCycleRepository.findCycleHeadersByExperimentId(experimentId);
+        List<Object[]> counts = mutantCycleRepository.countMutantStatesByExperimentId(experimentId);
 
-                        if (m.getMutantResults() != null && !m.getMutantResults().isEmpty()) {
-                            if (m.isKilled()) {
-                                killed++;
-                            } else if (m.isZombie()) {
-                                zombie++;
-                            } else {
-                                alive++;
-                            }
-                        }
-                    }
+        Map<String, Object[]> countsMap = new HashMap<>();
+        if (counts != null) {
+            for (Object[] row : counts) {
+                if (row != null && row.length >= 6 && row[0] != null) {
+                    countsMap.put(((Number) row[0]).intValue() + "|" + row[1], row);
                 }
-                MutantCycleSummaryDTO cDto = new MutantCycleSummaryDTO(mc.getId(), mc.getName(), mDTOs);
-                if (mc.getProject() != null) {
-                    cDto.setProjectId(mc.getProject().getId());
-                    cDto.setProjectName(mc.getProject().getName());
+            }
+        }
+
+        List<CycleStatsDTO> cycles = new ArrayList<>();
+        if (headers != null) {
+            for (Object[] h : headers) {
+                CycleStatsDTO cDto = new CycleStatsDTO();
+                int id = ((Number) h[0]).intValue();
+                String projectId = (String) h[1];
+                String projectName = (String) h[2];
+                String name = h[3] != null ? (String) h[3] : "Cycle " + id;
+
+                cDto.setId(id);
+                cDto.setProjectId(projectId);
+                cDto.setProjectName(projectName);
+                cDto.setName(name);
+
+                Object[] c = countsMap.get(id + "|" + projectId);
+                long totalMutants = 0;
+                long killed = 0;
+                long zombie = 0;
+                long alive = 0;
+                if (c != null) {
+                    totalMutants = c[2] != null ? ((Number) c[2]).longValue() : 0;
+                    killed = c[3] != null ? ((Number) c[3]).longValue() : 0;
+                    zombie = c[4] != null ? ((Number) c[4]).longValue() : 0;
+                    alive = c[5] != null ? ((Number) c[5]).longValue() : 0;
                 }
+                long notExecuted = totalMutants - killed - zombie - alive;
+                cDto.setTotalMutants(totalMutants);
                 cDto.setKilledCount(killed);
                 cDto.setZombieCount(zombie);
                 cDto.setAliveCount(alive);
-                int totalWithResults = killed + zombie + alive;
+                cDto.setNotExecutedCount(notExecuted >= 0 ? notExecuted : 0);
+
+                long totalWithResults = killed + zombie + alive;
                 if (totalWithResults > 0) {
                     cDto.setMutationScore(Math.round((killed * 100.0 / totalWithResults) * 100.0) / 100.0);
+                } else {
+                    cDto.setMutationScore(null);
                 }
-                return cDto;
-            }).collect(Collectors.toList());
-            dto.setMutantCycles(cycleDTOs);
+
+                cycles.add(cDto);
+            }
         }
+        dto.setCycles(cycles);
         return dto;
     }
 
