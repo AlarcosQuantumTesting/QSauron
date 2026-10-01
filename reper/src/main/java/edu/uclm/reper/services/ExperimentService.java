@@ -12,6 +12,8 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
+import java.nio.charset.StandardCharsets;
+
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,10 +22,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
@@ -103,7 +110,11 @@ public class ExperimentService {
     @Value("${app.qiskitexec.read-timeout-seconds:3600}")
     private int readTimeoutSeconds;
 
+    @Value("${app.qiskitexec.poll-interval-ms:3000}")
+    private long pollIntervalMs;
+
     private RestTemplate restTemplate;
+    private RestTemplate pollRestTemplate;
 
     @PostConstruct
     public void initRestTemplate() {
@@ -111,6 +122,11 @@ public class ExperimentService {
         factory.setConnectTimeout(30000);
         factory.setReadTimeout(this.readTimeoutSeconds * 1000);
         this.restTemplate = new RestTemplate(factory);
+
+        SimpleClientHttpRequestFactory pollFactory = new SimpleClientHttpRequestFactory();
+        pollFactory.setConnectTimeout(30000);
+        pollFactory.setReadTimeout(30000);
+        this.pollRestTemplate = new RestTemplate(pollFactory);
     }
 
     public ExperimentService() {
@@ -449,13 +465,104 @@ public class ExperimentService {
         execOneBody.put("reduceTable", false);
         execOneBody.put("inputs", new ArrayList<>());
 
-        HttpEntity<Map<String, Object>> execOneReq = new HttpEntity<>(execOneBody, createJsonHeaders());
-        ResponseEntity<List> origExecResp = restTemplate.exchange(
-                qiskitexecUrl + "/strategy/executeOne",
-                HttpMethod.PUT,
-                execOneReq,
-                List.class);
-        return origExecResp.getBody();
+        return runQiskitexecJob("executeOne", execOneBody);
+    }
+
+    private List<?> runQiskitexecJob(String kind, Object body) {
+        ResponseEntity<Map> resp = restTemplate.exchange(
+                qiskitexecUrl + "/strategy/jobs/" + kind,
+                HttpMethod.POST,
+                new HttpEntity<>(body, createJsonHeaders()),
+                Map.class);
+        String jobId = (String) resp.getBody().get("jobId");
+
+        long start = System.currentTimeMillis();
+        int consecutiveErrors = 0;
+        int polls = 0;
+        boolean done = false;
+        try {
+            while (true) {
+                try {
+                    Thread.sleep(pollIntervalMs);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw HttpServerErrorException.create(HttpStatus.INTERNAL_SERVER_ERROR, "Interrumpido",
+                            new HttpHeaders(), new byte[0], StandardCharsets.UTF_8);
+                }
+                polls++;
+                ResponseEntity<Map> stResp;
+                try {
+                    stResp = pollRestTemplate.getForEntity(qiskitexecUrl + "/strategy/jobs/" + jobId, Map.class);
+                } catch (ResourceAccessException ex) {
+                    consecutiveErrors++;
+                    logger.warn("[PERF] fallo sondeando job {} ({}): {}", jobId, consecutiveErrors, ex.getMessage());
+                    if (consecutiveErrors >= 10) {
+                        throw HttpServerErrorException.create(HttpStatus.BAD_GATEWAY, "No se pudo consultar el job " + jobId,
+                                new HttpHeaders(), new byte[0], StandardCharsets.UTF_8);
+                    }
+                    continue;
+                } catch (HttpStatusCodeException ex) {
+                    int sc = ex.getStatusCode().value();
+                    if (sc == 404) {
+                        throw HttpServerErrorException.create(HttpStatus.BAD_GATEWAY, "qiskitexec perdió el job " + jobId,
+                                new HttpHeaders(), new byte[0], StandardCharsets.UTF_8);
+                    } else if (sc == 502 || sc == 503 || sc == 504) {
+                        consecutiveErrors++;
+                        logger.warn("[PERF] fallo sondeando job {} ({}): {}", jobId, consecutiveErrors, ex.getMessage());
+                        if (consecutiveErrors >= 10) {
+                            throw HttpServerErrorException.create(HttpStatus.BAD_GATEWAY, "No se pudo consultar el job " + jobId,
+                                    new HttpHeaders(), new byte[0], StandardCharsets.UTF_8);
+                        }
+                        continue;
+                    } else {
+                        throw ex;
+                    }
+                }
+
+                consecutiveErrors = 0;
+                Map<?, ?> st = stResp.getBody();
+                String state = st != null ? (String) st.get("state") : null;
+
+                if ("finished".equals(state)) {
+                    List<?> r = pollRestTemplate.getForEntity(qiskitexecUrl + "/strategy/jobs/" + jobId + "/result", List.class).getBody();
+                    done = true;
+                    long waitMs = System.currentTimeMillis() - start;
+                    logger.info("[PERF] qiskitexec job={} kind={} waitMs={} polls={}", jobId, kind, waitMs, polls);
+                    return r;
+                } else if ("failed".equals(state)) {
+                    done = true;
+                    int code = ((Number) st.getOrDefault("httpStatus", 500)).intValue();
+                    String err = String.valueOf(st.get("error"));
+                    if (code >= 500) {
+                        throw HttpServerErrorException.create(HttpStatusCode.valueOf(code), err, new HttpHeaders(),
+                                err.getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8);
+                    } else {
+                        throw HttpClientErrorException.create(HttpStatusCode.valueOf(code), err, new HttpHeaders(),
+                                err.getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8);
+                    }
+                } else if ("cancelled".equals(state)) {
+                    throw HttpServerErrorException.create(HttpStatus.INTERNAL_SERVER_ERROR, "Job " + jobId + " cancelado en qiskitexec",
+                            new HttpHeaders(), new byte[0], StandardCharsets.UTF_8);
+                }
+
+                if (System.currentTimeMillis() - start > readTimeoutSeconds * 1000L) {
+                    throw HttpServerErrorException.create(HttpStatus.GATEWAY_TIMEOUT, "Job " + jobId + " superó " + readTimeoutSeconds + " s",
+                            new HttpHeaders(), new byte[0], StandardCharsets.UTF_8);
+                }
+            }
+        } finally {
+            if (!done) {
+                cancelQiskitexecJob(jobId);
+            }
+        }
+    }
+
+    private void cancelQiskitexecJob(String jobId) {
+        try {
+            pollRestTemplate.exchange(qiskitexecUrl + "/strategy/jobs/" + jobId, HttpMethod.DELETE, null, Map.class);
+        } catch (Exception e) {
+            logger.warn("No se pudo cancelar el job {}: {}", jobId, e.getMessage());
+        }
     }
 
     private void executeBatchWithSplit(String experimentId, Project project, MutantCycle cycle, List<Mutant> batch,
@@ -520,18 +627,13 @@ public class ExperimentService {
         stratBody.put("qubits", project.getQProgram().getQubits());
         stratBody.put("reduceTable", false);
 
-        HttpEntity<Map<String, Object>> stratReq = new HttpEntity<>(stratBody, createJsonHeaders());
-        ResponseEntity<List> stratResp = null;
+        List<List<Map<String, Object>>> stratResults = null;
         int attempts = 0;
         long tStratStart = System.nanoTime();
         while (attempts < 2) {
             try {
                 attempts++;
-                stratResp = restTemplate.exchange(
-                        qiskitexecUrl + "/strategy/executeWithStrategy",
-                        HttpMethod.PUT,
-                        stratReq,
-                        List.class);
+                stratResults = (List<List<Map<String, Object>>>) (List<?>) runQiskitexecJob("executeWithStrategy", stratBody);
                 break;
             } catch (ResourceAccessException ex) {
                 Throwable cause = ex;
@@ -557,7 +659,6 @@ public class ExperimentService {
         long strategyMs = (System.nanoTime() - tStratStart) / 1_000_000;
 
         long saveMs = 0;
-        List<List<Map<String, Object>>> stratResults = stratResp != null ? stratResp.getBody() : null;
         if (stratResults != null) {
             long tSaveStart = System.nanoTime();
             processAndSaveBatchResults(project.getId(), cycle.getId(), batch, stratResults);
