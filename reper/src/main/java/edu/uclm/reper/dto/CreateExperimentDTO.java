@@ -12,6 +12,7 @@ public class CreateExperimentDTO {
     private Double zombieError = 0.05;
     private Integer shots = 1024;
     private String email;
+    private NoiseConfigDTO noiseConfig;
 
     public CreateExperimentDTO() {}
 
@@ -41,4 +42,7 @@ public class CreateExperimentDTO {
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
+
+    public NoiseConfigDTO getNoiseConfig() { return noiseConfig; }
+    public void setNoiseConfig(NoiseConfigDTO noiseConfig) { this.noiseConfig = noiseConfig; }
 }

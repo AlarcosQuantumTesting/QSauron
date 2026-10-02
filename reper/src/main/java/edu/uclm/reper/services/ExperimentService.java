@@ -43,6 +43,7 @@ import edu.uclm.reper.dto.ExperimentProgressDTO;
 import edu.uclm.reper.dto.CycleStatsDTO;
 import edu.uclm.reper.dto.ExperimentDetailDTO;
 import edu.uclm.reper.dto.ExperimentListItemDTO;
+import edu.uclm.reper.dto.NoiseConfigDTO;
 import edu.uclm.reper.model.ExecConfig;
 import edu.uclm.reper.model.Experiment;
 import edu.uclm.reper.model.Mutant;
@@ -137,6 +138,8 @@ public class ExperimentService {
             throw new Exception("User not found: " + userId);
         }
 
+        validateNoiseConfig(dto.getNoiseConfig());
+
         User user = userOpt.get();
 
         Experiment experiment = new Experiment(dto.getName(), user);
@@ -165,6 +168,9 @@ public class ExperimentService {
 
     private void runExperimentAsync(String experimentId, CreateExperimentDTO dto, String userEmail) {
         long startTime = System.currentTimeMillis();
+        if (dto.getNoiseConfig() != null) {
+            logger.info("exp={} noiseConfig axis={} angle={}", experimentId, dto.getNoiseConfig().getAxis(), dto.getNoiseConfig().getAngle());
+        }
         try {
             List<CircuitConfigDTO> configs = dto.getCircuitConfigs();
             if (configs == null || configs.isEmpty()) {
@@ -222,7 +228,7 @@ public class ExperimentService {
         // 1. Generate mutants in qumugen
         long tGenStart = System.nanoTime();
         List<Map<String, Object>> generatedMutantCircuits = generateMutantsInQumugen(qProgram, dto.getOperatorNames(),
-                inputQubits);
+                inputQubits, dto.getNoiseConfig());
         long generateMs = (System.nanoTime() - tGenStart) / 1_000_000;
 
         // 2. Build and save new MutantCycle
@@ -364,7 +370,7 @@ public class ExperimentService {
     }
 
     private List<Map<String, Object>> generateMutantsInQumugen(QProgram qProgram, List<String> operatorNames,
-            String inputQubits) throws Exception {
+            String inputQubits, NoiseConfigDTO noiseConfig) throws Exception {
         try {
             Map<String, Object> quirkMap = extractQuirkCode(qProgram.getQuirkCircuit().getCode());
             Map<String, Object> body = new HashMap<>();
@@ -379,6 +385,9 @@ public class ExperimentService {
                             : "-1");
             body.put("generateWithAllInputs", false);
             body.put("inputQubits", inputQubits != null ? inputQubits : "");
+            if (noiseConfig != null) {
+                body.put("noiseConfig", Map.of("axis", noiseConfig.getAxis().trim().toUpperCase(), "angle", noiseConfig.getAngle()));
+            }
 
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, createJsonHeaders());
 
@@ -392,6 +401,20 @@ public class ExperimentService {
         } catch (Exception e) {
             logger.error("Error calling qumugen generateQuirkMutants: {}", e.getMessage(), e);
             throw new Exception("Error al generar mutantes en qumugen: " + e.getMessage(), e);
+        }
+    }
+
+    private void validateNoiseConfig(NoiseConfigDTO nc) throws Exception {
+        if (nc == null) {
+            return;
+        }
+        String axis = nc.getAxis();
+        if (axis == null || (!axis.trim().equalsIgnoreCase("X") && !axis.trim().equalsIgnoreCase("Y") && !axis.trim().equalsIgnoreCase("Z"))) {
+            throw new Exception("Invalid noise configuration: unknown axis '" + axis + "'");
+        }
+        Double angle = nc.getAngle();
+        if (angle == null || !Double.isFinite(angle) || angle <= 0 || angle > 2 * Math.PI + 1e-9) {
+            throw new Exception("Invalid noise configuration: angle must be in (0, 2pi] radians, got " + angle);
         }
     }
 
