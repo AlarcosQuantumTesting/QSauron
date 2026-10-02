@@ -41,3 +41,71 @@ VALUES
 (29, 'Swaps Z^½ gates with Z gates', 1, 'Z^½_Z', 6),
 (32, 'Swaps Z^¼ gates with Z^½ gates', 1, 'Z^¼_Z^½', 6),
 (31, 'Swaps Z^¼ gates with Z gates', 1, 'Z^¼_Z', 6);
+
+SET NAMES utf8mb4;
+
+-- 1) Nuevas familias
+INSERT INTO qsauron.operator_types (name) VALUES
+('Noise insertion'),
+('Gate addition');
+
+-- 2) Operadores de inserción de ruido (3)
+INSERT INTO qsauron.operators (description, enabled, name, operator_type_id)
+SELECT v.description, v.enabled, v.name, t.id FROM (
+  SELECT 'Inserts a small Rx(0.1) noise rotation at the beginning of the circuit, on each qubit' AS description, 1 AS enabled, 'NoiseInsertionStart' AS name
+  UNION ALL SELECT 'Inserts a small Rx(0.1) noise rotation at the end of the circuit, on each qubit', 1, 'NoiseInsertionEnd'
+  UNION ALL SELECT 'Inserts a small Rx(0.1) noise rotation at a random position of the circuit, on each qubit', 1, 'NoiseInsertionRandom'
+) v JOIN qsauron.operator_types t ON t.name = 'Noise insertion';
+
+-- 3) Operadores de agregación de puertas (3 posiciones x 16 puertas = 48)
+INSERT INTO qsauron.operators (description, enabled, name, operator_type_id)
+SELECT v.description, v.enabled, v.name, t.id FROM (
+  SELECT 'Adds an H gate at the beginning of the circuit, on each qubit' AS description, 1 AS enabled, 'AddGateStart_H' AS name
+  UNION ALL SELECT 'Adds an X gate at the beginning of the circuit, on each qubit', 1, 'AddGateStart_X'
+  UNION ALL SELECT 'Adds an X^½ gate at the beginning of the circuit, on each qubit', 1, 'AddGateStart_X^½'
+  UNION ALL SELECT 'Adds an X^-½ gate at the beginning of the circuit, on each qubit', 1, 'AddGateStart_X^-½'
+  UNION ALL SELECT 'Adds an X^¼ gate at the beginning of the circuit, on each qubit', 1, 'AddGateStart_X^¼'
+  UNION ALL SELECT 'Adds an X^-¼ gate at the beginning of the circuit, on each qubit', 1, 'AddGateStart_X^-¼'
+  UNION ALL SELECT 'Adds a Y gate at the beginning of the circuit, on each qubit', 1, 'AddGateStart_Y'
+  UNION ALL SELECT 'Adds a Y^½ gate at the beginning of the circuit, on each qubit', 1, 'AddGateStart_Y^½'
+  UNION ALL SELECT 'Adds a Y^-½ gate at the beginning of the circuit, on each qubit', 1, 'AddGateStart_Y^-½'
+  UNION ALL SELECT 'Adds a Y^¼ gate at the beginning of the circuit, on each qubit', 1, 'AddGateStart_Y^¼'
+  UNION ALL SELECT 'Adds a Y^-¼ gate at the beginning of the circuit, on each qubit', 1, 'AddGateStart_Y^-¼'
+  UNION ALL SELECT 'Adds a Z gate at the beginning of the circuit, on each qubit', 1, 'AddGateStart_Z'
+  UNION ALL SELECT 'Adds a Z^½ gate at the beginning of the circuit, on each qubit', 1, 'AddGateStart_Z^½'
+  UNION ALL SELECT 'Adds a Z^-½ gate at the beginning of the circuit, on each qubit', 1, 'AddGateStart_Z^-½'
+  UNION ALL SELECT 'Adds a Z^¼ gate at the beginning of the circuit, on each qubit', 1, 'AddGateStart_Z^¼'
+  UNION ALL SELECT 'Adds a Z^-¼ gate at the beginning of the circuit, on each qubit', 1, 'AddGateStart_Z^-¼'
+  UNION ALL SELECT 'Adds an H gate at the end of the circuit, on each qubit', 1, 'AddGateEnd_H'
+  UNION ALL SELECT 'Adds an X gate at the end of the circuit, on each qubit', 1, 'AddGateEnd_X'
+  UNION ALL SELECT 'Adds an X^½ gate at the end of the circuit, on each qubit', 1, 'AddGateEnd_X^½'
+  UNION ALL SELECT 'Adds an X^-½ gate at the end of the circuit, on each qubit', 1, 'AddGateEnd_X^-½'
+  UNION ALL SELECT 'Adds an X^¼ gate at the end of the circuit, on each qubit', 1, 'AddGateEnd_X^¼'
+  UNION ALL SELECT 'Adds an X^-¼ gate at the end of the circuit, on each qubit', 1, 'AddGateEnd_X^-¼'
+  UNION ALL SELECT 'Adds a Y gate at the end of the circuit, on each qubit', 1, 'AddGateEnd_Y'
+  UNION ALL SELECT 'Adds a Y^½ gate at the end of the circuit, on each qubit', 1, 'AddGateEnd_Y^½'
+  UNION ALL SELECT 'Adds a Y^-½ gate at the end of the circuit, on each qubit', 1, 'AddGateEnd_Y^-½'
+  UNION ALL SELECT 'Adds a Y^¼ gate at the end of the circuit, on each qubit', 1, 'AddGateEnd_Y^¼'
+  UNION ALL SELECT 'Adds a Y^-¼ gate at the end of the circuit, on each qubit', 1, 'AddGateEnd_Y^-¼'
+  UNION ALL SELECT 'Adds a Z gate at the end of the circuit, on each qubit', 1, 'AddGateEnd_Z'
+  UNION ALL SELECT 'Adds a Z^½ gate at the end of the circuit, on each qubit', 1, 'AddGateEnd_Z^½'
+  UNION ALL SELECT 'Adds a Z^-½ gate at the end of the circuit, on each qubit', 1, 'AddGateEnd_Z^-½'
+  UNION ALL SELECT 'Adds a Z^¼ gate at the end of the circuit, on each qubit', 1, 'AddGateEnd_Z^¼'
+  UNION ALL SELECT 'Adds a Z^-¼ gate at the end of the circuit, on each qubit', 1, 'AddGateEnd_Z^-¼'
+  UNION ALL SELECT 'Adds an H gate at a random position of the circuit, on each qubit', 1, 'AddGateRandom_H'
+  UNION ALL SELECT 'Adds an X gate at a random position of the circuit, on each qubit', 1, 'AddGateRandom_X'
+  UNION ALL SELECT 'Adds an X^½ gate at a random position of the circuit, on each qubit', 1, 'AddGateRandom_X^½'
+  UNION ALL SELECT 'Adds an X^-½ gate at a random position of the circuit, on each qubit', 1, 'AddGateRandom_X^-½'
+  UNION ALL SELECT 'Adds an X^¼ gate at a random position of the circuit, on each qubit', 1, 'AddGateRandom_X^¼'
+  UNION ALL SELECT 'Adds an X^-¼ gate at a random position of the circuit, on each qubit', 1, 'AddGateRandom_X^-¼'
+  UNION ALL SELECT 'Adds a Y gate at a random position of the circuit, on each qubit', 1, 'AddGateRandom_Y'
+  UNION ALL SELECT 'Adds a Y^½ gate at a random position of the circuit, on each qubit', 1, 'AddGateRandom_Y^½'
+  UNION ALL SELECT 'Adds a Y^-½ gate at a random position of the circuit, on each qubit', 1, 'AddGateRandom_Y^-½'
+  UNION ALL SELECT 'Adds a Y^¼ gate at a random position of the circuit, on each qubit', 1, 'AddGateRandom_Y^¼'
+  UNION ALL SELECT 'Adds a Y^-¼ gate at a random position of the circuit, on each qubit', 1, 'AddGateRandom_Y^-¼'
+  UNION ALL SELECT 'Adds a Z gate at a random position of the circuit, on each qubit', 1, 'AddGateRandom_Z'
+  UNION ALL SELECT 'Adds a Z^½ gate at a random position of the circuit, on each qubit', 1, 'AddGateRandom_Z^½'
+  UNION ALL SELECT 'Adds a Z^-½ gate at a random position of the circuit, on each qubit', 1, 'AddGateRandom_Z^-½'
+  UNION ALL SELECT 'Adds a Z^¼ gate at a random position of the circuit, on each qubit', 1, 'AddGateRandom_Z^¼'
+  UNION ALL SELECT 'Adds a Z^-¼ gate at a random position of the circuit, on each qubit', 1, 'AddGateRandom_Z^-¼'
+) v JOIN qsauron.operator_types t ON t.name = 'Gate addition';
