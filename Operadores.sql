@@ -109,3 +109,8 @@ SELECT v.description, v.enabled, v.name, t.id FROM (
   UNION ALL SELECT 'Adds a Z^¼ gate at a random position of the circuit, on each qubit', 1, 'AddGateRandom_Z^¼'
   UNION ALL SELECT 'Adds a Z^-¼ gate at a random position of the circuit, on each qubit', 1, 'AddGateRandom_Z^-¼'
 ) v JOIN qsauron.operator_types t ON t.name = 'Gate addition';
+
+SET NAMES utf8mb4;
+UPDATE qsauron.operators SET description = 'Inserts the configured noise rotations (axis and angle) as a new column at the beginning of the circuit, on each qubit' WHERE name = 'NoiseInsertionStart';
+UPDATE qsauron.operators SET description = 'Inserts the configured noise rotations (axis and angle) as a new column at the end of the circuit, on each qubit' WHERE name = 'NoiseInsertionEnd';
+UPDATE qsauron.operators SET description = 'Inserts the configured noise rotations (axis and angle) as a new column at a random position of the circuit, on each qubit' WHERE name = 'NoiseInsertionRandom';
