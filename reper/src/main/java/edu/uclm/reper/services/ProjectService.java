@@ -140,7 +140,7 @@ public class ProjectService {
                                 opDto = new OperatorSummaryDTO(mutant.getOperator().getName());
                             }
                             return new MutantSummaryDTO(mutant.getIndex(),
-                                    opDto, mutant.getOracleName());
+                                    opDto, mutant.getOracleName(), mutant.getMutationDetail());
                         }).collect(Collectors.toList());
                     }
                     return new MutantCycleSummaryDTO(cycle.getId(), cycle.getName(), mutantDTOs);
@@ -617,6 +617,7 @@ public class ProjectService {
             if (existingM != null) {
                 existingM.setMutantCycle(existingCycle);
                 existingM.setOracleName(newM.getOracleName());
+                existingM.setMutationDetail(newM.getMutationDetail());
 
                 if (newM.getMutantResults() != null) {
                     existingM.setMutantResults(newM.getMutantResults());
@@ -726,6 +727,7 @@ public class ProjectService {
                 // Update existing
                 existingM.setMutantCycle(cycle);
                 existingM.setOracleName(newM.getOracleName());
+                existingM.setMutationDetail(newM.getMutationDetail());
                 if (newM.getMutantResults() != null) {
                     for (var r : newM.getMutantResults())
                         r.setMutant(existingM);
@@ -785,6 +787,9 @@ public class ProjectService {
             if (target != null) {
                 if (batchMutant.getOracleName() != null) {
                     target.setOracleName(batchMutant.getOracleName());
+                }
+                if (batchMutant.getMutationDetail() != null) {
+                    target.setMutationDetail(batchMutant.getMutationDetail());
                 }
                 if (batchMutant.getMutantResults() != null) {
                     List<MutantResult> incomingResults = new ArrayList<>(batchMutant.getMutantResults());

@@ -4,6 +4,7 @@ public class MutantSummaryDTO {
     private int mutantIndex;
     private OperatorSummaryDTO operator;
     private String oracleName;
+    private String mutationDetail;
 
     public MutantSummaryDTO() {
     }
@@ -17,6 +18,13 @@ public class MutantSummaryDTO {
         this.mutantIndex = mutantIndex;
         this.operator = operator;
         this.oracleName = oracleName;
+    }
+
+    public MutantSummaryDTO(int mutantIndex, OperatorSummaryDTO operator, String oracleName, String mutationDetail) {
+        this.mutantIndex = mutantIndex;
+        this.operator = operator;
+        this.oracleName = oracleName;
+        this.mutationDetail = mutationDetail;
     }
 
     public int getMutantIndex() {
@@ -41,5 +49,13 @@ public class MutantSummaryDTO {
 
     public void setOracleName(String oracleName) {
         this.oracleName = oracleName;
+    }
+
+    public String getMutationDetail() {
+        return mutationDetail;
+    }
+
+    public void setMutationDetail(String mutationDetail) {
+        this.mutationDetail = mutationDetail;
     }
 }

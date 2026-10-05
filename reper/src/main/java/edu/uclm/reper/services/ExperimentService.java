@@ -309,6 +309,9 @@ public class ExperimentService {
                 m.setRow(((Number) mcData.get("mutatedRow")).intValue());
             }
 
+            if (mcData.get("oracleName") != null) m.setOracleName((String) mcData.get("oracleName"));
+            if (mcData.get("mutationDetail") != null) m.setMutationDetail((String) mcData.get("mutationDetail"));
+
             Map<String, Object> circuitMap = null;
             if (mcData.get("quirk") instanceof Map) {
                 circuitMap = (Map<String, Object>) mcData.get("quirk");

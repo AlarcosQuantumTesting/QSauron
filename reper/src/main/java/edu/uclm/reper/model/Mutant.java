@@ -55,6 +55,10 @@ public class Mutant {
     @JsonProperty("oracleName")
     private String oracleName;
 
+    @Column(name = "mutation_detail")
+    @JsonProperty("mutationDetail")
+    private String mutationDetail;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumns({
             @JoinColumn(name = "mutant_cycle_id", referencedColumnName = "id"),
@@ -148,6 +152,14 @@ public class Mutant {
 
     public void setOracleName(String oracleName) {
         this.oracleName = oracleName;
+    }
+
+    public String getMutationDetail() {
+        return mutationDetail;
+    }
+
+    public void setMutationDetail(String mutationDetail) {
+        this.mutationDetail = mutationDetail;
     }
 
     public boolean isKilled() {
