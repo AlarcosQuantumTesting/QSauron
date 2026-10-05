@@ -138,7 +138,7 @@ public class ExperimentService {
             throw new Exception("User not found: " + userId);
         }
 
-        validateNoiseConfig(dto.getNoiseConfig());
+        validateNoiseConfigs(dto.effectiveNoiseConfigs());
 
         User user = userOpt.get();
 
@@ -168,8 +168,14 @@ public class ExperimentService {
 
     private void runExperimentAsync(String experimentId, CreateExperimentDTO dto, String userEmail) {
         long startTime = System.currentTimeMillis();
-        if (dto.getNoiseConfig() != null) {
-            logger.info("exp={} noiseConfig axis={} angle={}", experimentId, dto.getNoiseConfig().getAxis(), dto.getNoiseConfig().getAngle());
+        List<NoiseConfigDTO> effNoise = dto.effectiveNoiseConfigs();
+        if (effNoise != null && !effNoise.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (NoiseConfigDTO nc : effNoise) {
+                sb.append(" ").append(nc.getAxis() != null ? nc.getAxis().trim().toUpperCase() : "?")
+                  .append("/").append(nc.getAngle());
+            }
+            logger.info("exp={} noiseConfigs count={}:{}", experimentId, effNoise.size(), sb.toString());
         }
         try {
             List<CircuitConfigDTO> configs = dto.getCircuitConfigs();
@@ -228,7 +234,7 @@ public class ExperimentService {
         // 1. Generate mutants in qumugen
         long tGenStart = System.nanoTime();
         List<Map<String, Object>> generatedMutantCircuits = generateMutantsInQumugen(qProgram, dto.getOperatorNames(),
-                inputQubits, dto.getNoiseConfig());
+                inputQubits, dto.effectiveNoiseConfigs());
         long generateMs = (System.nanoTime() - tGenStart) / 1_000_000;
 
         // 2. Build and save new MutantCycle
@@ -370,7 +376,7 @@ public class ExperimentService {
     }
 
     private List<Map<String, Object>> generateMutantsInQumugen(QProgram qProgram, List<String> operatorNames,
-            String inputQubits, NoiseConfigDTO noiseConfig) throws Exception {
+            String inputQubits, List<NoiseConfigDTO> noiseConfigs) throws Exception {
         try {
             Map<String, Object> quirkMap = extractQuirkCode(qProgram.getQuirkCircuit().getCode());
             Map<String, Object> body = new HashMap<>();
@@ -385,8 +391,10 @@ public class ExperimentService {
                             : "-1");
             body.put("generateWithAllInputs", false);
             body.put("inputQubits", inputQubits != null ? inputQubits : "");
-            if (noiseConfig != null) {
-                body.put("noiseConfig", Map.of("axis", noiseConfig.getAxis().trim().toUpperCase(), "angle", noiseConfig.getAngle()));
+            if (noiseConfigs != null && !noiseConfigs.isEmpty()) {
+                body.put("noiseConfigs", noiseConfigs.stream()
+                        .map(nc -> Map.of("axis", nc.getAxis().trim().toUpperCase(), "angle", nc.getAngle()))
+                        .toList());
             }
 
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, createJsonHeaders());
@@ -401,6 +409,29 @@ public class ExperimentService {
         } catch (Exception e) {
             logger.error("Error calling qumugen generateQuirkMutants: {}", e.getMessage(), e);
             throw new Exception("Error al generar mutantes en qumugen: " + e.getMessage(), e);
+        }
+    }
+
+    private void validateNoiseConfigs(List<NoiseConfigDTO> list) throws Exception {
+        if (list == null) {
+            return;
+        }
+        if (list.size() > 6) {
+            throw new Exception("Invalid noise configuration: at most 6 rotations are allowed");
+        }
+        for (int i = 0; i < list.size(); i++) {
+            NoiseConfigDTO nc = list.get(i);
+            validateNoiseConfig(nc);
+            for (int j = 0; j < i; j++) {
+                NoiseConfigDTO prev = list.get(j);
+                if (nc.getAxis() != null && prev.getAxis() != null
+                        && nc.getAxis().trim().equalsIgnoreCase(prev.getAxis().trim())
+                        && nc.getAngle() != null && prev.getAngle() != null
+                        && Math.abs(nc.getAngle() - prev.getAngle()) < 1e-9) {
+                    throw new Exception("Invalid noise configuration: duplicated rotation "
+                            + nc.getAxis().trim().toUpperCase() + "(" + nc.getAngle() + ")");
+                }
+            }
         }
     }
 

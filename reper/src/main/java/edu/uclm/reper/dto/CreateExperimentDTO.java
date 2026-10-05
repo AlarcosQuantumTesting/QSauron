@@ -2,6 +2,8 @@ package edu.uclm.reper.dto;
 
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 public class CreateExperimentDTO {
     private String name;
     private List<CircuitConfigDTO> circuitConfigs;
@@ -13,6 +15,7 @@ public class CreateExperimentDTO {
     private Integer shots = 1024;
     private String email;
     private NoiseConfigDTO noiseConfig;
+    private List<NoiseConfigDTO> noiseConfigs;
 
     public CreateExperimentDTO() {}
 
@@ -45,4 +48,18 @@ public class CreateExperimentDTO {
 
     public NoiseConfigDTO getNoiseConfig() { return noiseConfig; }
     public void setNoiseConfig(NoiseConfigDTO noiseConfig) { this.noiseConfig = noiseConfig; }
+
+    public List<NoiseConfigDTO> getNoiseConfigs() { return noiseConfigs; }
+    public void setNoiseConfigs(List<NoiseConfigDTO> noiseConfigs) { this.noiseConfigs = noiseConfigs; }
+
+    @JsonIgnore
+    public List<NoiseConfigDTO> effectiveNoiseConfigs() {
+        if (this.noiseConfigs != null && !this.noiseConfigs.isEmpty()) {
+            return this.noiseConfigs;
+        }
+        if (this.noiseConfig != null) {
+            return List.of(this.noiseConfig);
+        }
+        return null;
+    }
 }
