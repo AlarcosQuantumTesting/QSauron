@@ -14,7 +14,7 @@ class ImportContentValidatorTest {
 
     @BeforeEach
     void setUp() {
-        validator = new ImportContentValidator(524288);
+        validator = new ImportContentValidator(2097152);
     }
 
     @Test
@@ -115,10 +115,23 @@ class ImportContentValidatorTest {
 
     @Test
     void testRejectedFileTooLarge() {
-        String large = "a".repeat(600 * 1024);
+        String large = "a".repeat(2097152 + 1);
         ImportItemDTO item = new ImportItemDTO("large.quil", "quil", "large", large);
         ImportException ex = assertThrows(ImportException.class, () -> validator.validate(item));
         assertEquals(ImportException.FILE_TOO_LARGE, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("2 MB"));
+    }
+
+    @Test
+    void testAcceptedValidLargeQasm() {
+        String header = "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[2];\n";
+        String gate = "h q[0];\n";
+        int repeatCount = 240000; // ~1.92 MB
+        String code = header + gate.repeat(repeatCount);
+        ImportItemDTO item = new ImportItemDTO("large.qasm", "qasm", "large", code);
+        var res = validator.validate(item);
+        assertEquals("large.qasm", res.fileName());
+        assertEquals(ImportFormat.QASM, res.format());
     }
 
     @Test

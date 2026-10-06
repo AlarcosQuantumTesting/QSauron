@@ -54,8 +54,8 @@ public class ProjectImportService {
             ProjectRepository projectRepository,
             UserRepository userRepository,
             @Value("${app.import.max-files:20}") int maxFiles,
-            @Value("${app.import.max-total-bytes:5242880}") long maxTotalBytes,
-            @Value("${app.import.max-file-bytes:524288}") long maxFileBytes,
+            @Value("${app.import.max-total-bytes:20971520}") long maxTotalBytes,
+            @Value("${app.import.max-file-bytes:2097152}") long maxFileBytes,
             @Value("${app.import.max-qubits:16}") int maxQubits) {
         this.validator = validator;
         this.proxy = proxy;
@@ -299,7 +299,7 @@ public class ProjectImportService {
 
         byte[] quirkBytes = quirk.toString().getBytes(StandardCharsets.UTF_8);
         if (quirkBytes.length > maxFileBytes) {
-            throw new ImportException(ImportException.FILE_TOO_LARGE, "Circuit exceeds size limit", 400);
+            throw new ImportException(ImportException.FILE_TOO_LARGE, "Circuit exceeds " + formatBytes(maxFileBytes), 400);
         }
 
         QConvertResult cr = proxy.convertOne(quirk.toString(), "quirk", format.getId());
@@ -310,5 +310,15 @@ public class ProjectImportService {
 
         String extension = format.getExtensions().isEmpty() ? "" : format.getExtensions().get(0);
         return new RepresentationDTO(format.getId(), extension, cr.output());
+    }
+
+    private static String formatBytes(long b) {
+        if (b % 1048576 == 0) {
+            return (b / 1048576) + " MB";
+        }
+        if (b % 1024 == 0) {
+            return (b / 1024) + " KB";
+        }
+        return b + " bytes";
     }
 }

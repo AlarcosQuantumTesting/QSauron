@@ -14,15 +14,13 @@ class ImportRequestSizeFilterTest {
 
     @BeforeEach
     void setUp() {
-        filter = new ImportRequestSizeFilter(6291456); // 6 MB
+        filter = new ImportRequestSizeFilter(33554432); // 32 MB
     }
 
     @Test
-    void testPostTooLargeReturns413() throws Exception {
+    void testPost33MbTooLargeReturns413() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/projects/import");
-        byte[] largeContent = new byte[7 * 1024 * 1024];
-        request.setContent(largeContent);
-
+        request.addHeader("Content-Length", 33L * 1024 * 1024);
 
         MockHttpServletResponse response = new MockHttpServletResponse();
         MockFilterChain chain = new MockFilterChain();
@@ -34,10 +32,22 @@ class ImportRequestSizeFilterTest {
     }
 
     @Test
+    void testPost7MbPassesChain() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/projects/import");
+        request.addHeader("Content-Length", 7L * 1024 * 1024);
+
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertEquals(200, response.getStatus());
+        assertNotNull(chain.getRequest());
+    }
+
+    @Test
     void testPostSmallPassesChain() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/projects/import");
-        byte[] content = new byte[1024];
-        request.setContent(content);
         request.addHeader("Content-Length", 1024);
 
         MockHttpServletResponse response = new MockHttpServletResponse();

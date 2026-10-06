@@ -35,8 +35,8 @@ public class ImportController extends BaseController {
     public ImportController(
             ProjectImportService service,
             @Value("${app.import.max-files:20}") int maxFiles,
-            @Value("${app.import.max-file-bytes:524288}") long maxFileBytes,
-            @Value("${app.import.max-total-bytes:5242880}") long maxTotalBytes,
+            @Value("${app.import.max-file-bytes:2097152}") long maxFileBytes,
+            @Value("${app.import.max-total-bytes:20971520}") long maxTotalBytes,
             @Value("${app.import.max-qubits:16}") int maxQubits) {
         this.service = service;
         this.maxFiles = maxFiles;

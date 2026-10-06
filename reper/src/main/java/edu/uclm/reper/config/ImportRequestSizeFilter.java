@@ -17,7 +17,7 @@ public class ImportRequestSizeFilter extends OncePerRequestFilter {
 
     private final long maxRequestBytes;
 
-    public ImportRequestSizeFilter(@Value("${app.import.max-request-bytes:6291456}") long maxRequestBytes) {
+    public ImportRequestSizeFilter(@Value("${app.import.max-request-bytes:33554432}") long maxRequestBytes) {
         this.maxRequestBytes = maxRequestBytes;
     }
 
@@ -32,6 +32,15 @@ public class ImportRequestSizeFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         long contentLength = request.getContentLengthLong();
+        if (contentLength < 0) {
+            String clHeader = request.getHeader("Content-Length");
+            if (clHeader != null) {
+                try {
+                    contentLength = Long.parseLong(clHeader);
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
         if (contentLength < 0 || contentLength > maxRequestBytes) {
             response.setStatus(HttpStatus.PAYLOAD_TOO_LARGE.value());
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);

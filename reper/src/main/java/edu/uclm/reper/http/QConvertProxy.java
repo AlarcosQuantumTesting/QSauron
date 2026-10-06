@@ -1,6 +1,7 @@
 package edu.uclm.reper.http;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.uclm.reper.services.ImportException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +27,8 @@ public class QConvertProxy {
 
     private final WebClient webClient;
     private final int timeoutSeconds;
+    private final long maxRequestBytes;
+    private final ObjectMapper objectMapper;
 
     public record QConvertResult(boolean success, String output, String error) {}
 
@@ -33,12 +36,55 @@ public class QConvertProxy {
 
     public QConvertProxy(
             @Value("${app.qconvert.url:http://localhost:3000}") String url,
-            @Value("${app.qconvert.timeout-seconds:60}") int timeoutSeconds) {
+            @Value("${app.qconvert.timeout-seconds:60}") int timeoutSeconds,
+            @Value("${app.qconvert.max-request-bytes:4194304}") long maxRequestBytes) {
         this.timeoutSeconds = timeoutSeconds;
+        this.maxRequestBytes = maxRequestBytes;
+        this.objectMapper = new ObjectMapper();
         this.webClient = WebClient.builder()
                 .baseUrl(url)
-                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(16 * 1024 * 1024))
+                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(32 * 1024 * 1024))
                 .build();
+    }
+
+    public static List<List<Integer>> planChunks(List<Map<String, Object>> items, ObjectMapper mapper, long maxBytes, int maxItems) {
+        if (items == null || items.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<List<Integer>> chunks = new ArrayList<>();
+        List<Integer> currentChunk = new ArrayList<>();
+        long currentBytes = 0;
+
+        for (int i = 0; i < items.size(); i++) {
+            Map<String, Object> item = items.get(i);
+            long itemBytes;
+            try {
+                itemBytes = mapper.writeValueAsBytes(item).length;
+            } catch (Exception e) {
+                itemBytes = 0;
+            }
+
+            if (!currentChunk.isEmpty() && (currentChunk.size() >= maxItems || currentBytes + itemBytes > maxBytes - 64)) {
+                chunks.add(currentChunk);
+                currentChunk = new ArrayList<>();
+                currentBytes = 0;
+            }
+
+            currentChunk.add(i);
+            currentBytes += itemBytes;
+
+            if (itemBytes >= maxBytes) {
+                chunks.add(currentChunk);
+                currentChunk = new ArrayList<>();
+                currentBytes = 0;
+            }
+        }
+
+        if (!currentChunk.isEmpty()) {
+            chunks.add(currentChunk);
+        }
+
+        return chunks;
     }
 
     public List<QConvertResult> convertBatch(List<String> codes, List<String> sourceFormats, String destFormat) {
@@ -55,11 +101,16 @@ public class QConvertProxy {
             allItems.add(item);
         }
 
-        List<QConvertResult> combined = new ArrayList<>();
-        int chunkSize = 100;
+        // q-convert-api acepta como máximo 5 MB por petición (express.json limit)
+        List<List<Integer>> chunkIndices = planChunks(allItems, objectMapper, maxRequestBytes, 100);
+        QConvertResult[] combined = new QConvertResult[allItems.size()];
+
         try {
-            for (int i = 0; i < allItems.size(); i += chunkSize) {
-                List<Map<String, Object>> chunk = allItems.subList(i, Math.min(allItems.size(), i + chunkSize));
+            for (List<Integer> chunkIdxList : chunkIndices) {
+                List<Map<String, Object>> chunk = new ArrayList<>();
+                for (int idx : chunkIdxList) {
+                    chunk.add(allItems.get(idx));
+                }
                 Map<String, Object> requestPayload = Map.of("items", chunk);
 
                 JsonNode response = webClient.post()
@@ -76,20 +127,28 @@ public class QConvertProxy {
                 }
 
                 JsonNode resultsArray = response.get("results");
-                List<IndexedResult> chunkResults = new ArrayList<>();
                 for (JsonNode resNode : resultsArray) {
-                    int idx = resNode.has("index") ? resNode.get("index").asInt() : 0;
+                    int chunkRelIdx = resNode.has("index") ? resNode.get("index").asInt() : 0;
                     boolean success = resNode.has("success") && resNode.get("success").asBoolean();
                     String output = resNode.has("output") ? resNode.get("output").asText() : null;
                     String error = resNode.has("error") ? resNode.get("error").asText() : null;
-                    chunkResults.add(new IndexedResult(idx, new QConvertResult(success, output, error)));
-                }
-                chunkResults.sort(Comparator.comparingInt(r -> r.index));
-                for (IndexedResult r : chunkResults) {
-                    combined.add(r.result);
+
+                    if (chunkRelIdx >= 0 && chunkRelIdx < chunkIdxList.size()) {
+                        int originalIdx = chunkIdxList.get(chunkRelIdx);
+                        combined[originalIdx] = new QConvertResult(success, output, error);
+                    }
                 }
             }
-            return combined;
+
+            List<QConvertResult> resultList = new ArrayList<>(allItems.size());
+            for (int i = 0; i < allItems.size(); i++) {
+                if (combined[i] != null) {
+                    resultList.add(combined[i]);
+                } else {
+                    resultList.add(new QConvertResult(false, null, "No result returned for item " + i));
+                }
+            }
+            return resultList;
         } catch (ImportException e) {
             throw e;
         } catch (Exception e) {

@@ -41,7 +41,7 @@ class ProjectImportServiceTest {
 
     @BeforeEach
     void setUp() {
-        ImportContentValidator validator = new ImportContentValidator(524288);
+        ImportContentValidator validator = new ImportContentValidator(2097152);
         proxy = mock(QConvertProxy.class);
         projectService = mock(ProjectService.class);
         projectRepository = mock(ProjectRepository.class);
@@ -55,8 +55,8 @@ class ProjectImportServiceTest {
                 projectRepository,
                 userRepository,
                 20,
-                5242880,
-                524288,
+                20971520,
+                2097152,
                 16
         );
 

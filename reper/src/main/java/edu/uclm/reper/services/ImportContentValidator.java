@@ -18,7 +18,7 @@ public class ImportContentValidator {
     private final long maxFileBytes;
     private final ObjectMapper jsonMapper;
 
-    public ImportContentValidator(@Value("${app.import.max-file-bytes:524288}") long maxFileBytes) {
+    public ImportContentValidator(@Value("${app.import.max-file-bytes:2097152}") long maxFileBytes) {
         this.maxFileBytes = maxFileBytes;
         JsonFactory jsonFactory = JsonFactory.builder()
                 .streamReadConstraints(StreamReadConstraints.builder().maxNestingDepth(64).build())
@@ -81,7 +81,7 @@ public class ImportContentValidator {
         byte[] utf8 = code.getBytes(StandardCharsets.UTF_8);
         if (utf8.length > maxFileBytes) {
             String name = cleanFileName != null ? cleanFileName : "File";
-            throw new ImportException(ImportException.FILE_TOO_LARGE, name + " exceeds 512 KB");
+            throw new ImportException(ImportException.FILE_TOO_LARGE, name + " exceeds " + formatBytes(maxFileBytes));
         }
 
         // 5. Solo texto
@@ -161,5 +161,15 @@ public class ImportContentValidator {
 
         // 7. Retorno
         return new ValidatedItem(cleanFileName, format, code, utf8);
+    }
+
+    private static String formatBytes(long b) {
+        if (b % 1048576 == 0) {
+            return (b / 1048576) + " MB";
+        }
+        if (b % 1024 == 0) {
+            return (b / 1024) + " KB";
+        }
+        return b + " bytes";
     }
 }
