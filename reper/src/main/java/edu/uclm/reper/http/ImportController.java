@@ -6,7 +6,6 @@ import edu.uclm.reper.dto.RepresentRequestDTO;
 import edu.uclm.reper.services.ImportException;
 import edu.uclm.reper.services.ImportFormat;
 import edu.uclm.reper.services.ProjectImportService;
-import edu.uclm.reper.services.VirusScanner;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -28,7 +27,6 @@ import java.util.Map;
 public class ImportController extends BaseController {
 
     private final ProjectImportService service;
-    private final VirusScanner scanner;
     private final int maxFiles;
     private final long maxFileBytes;
     private final long maxTotalBytes;
@@ -36,13 +34,11 @@ public class ImportController extends BaseController {
 
     public ImportController(
             ProjectImportService service,
-            VirusScanner scanner,
             @Value("${app.import.max-files:20}") int maxFiles,
             @Value("${app.import.max-file-bytes:524288}") long maxFileBytes,
             @Value("${app.import.max-total-bytes:5242880}") long maxTotalBytes,
             @Value("${app.import.max-qubits:16}") int maxQubits) {
         this.service = service;
-        this.scanner = scanner;
         this.maxFiles = maxFiles;
         this.maxFileBytes = maxFileBytes;
         this.maxTotalBytes = maxTotalBytes;
@@ -64,7 +60,6 @@ public class ImportController extends BaseController {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("formats", formats);
         response.put("limits", limits);
-        response.put("antivirusEnabled", scanner.isEnabled());
 
         return ResponseEntity.ok(response);
     }

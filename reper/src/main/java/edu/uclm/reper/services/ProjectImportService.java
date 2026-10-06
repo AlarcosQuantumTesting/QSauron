@@ -36,7 +36,6 @@ public class ProjectImportService {
     private static final Logger logger = LoggerFactory.getLogger(ProjectImportService.class);
 
     private final ImportContentValidator validator;
-    private final VirusScanner scanner;
     private final QConvertProxy proxy;
     private final ProjectService projectService;
     private final ProjectRepository projectRepository;
@@ -50,7 +49,6 @@ public class ProjectImportService {
 
     public ProjectImportService(
             ImportContentValidator validator,
-            VirusScanner scanner,
             QConvertProxy proxy,
             ProjectService projectService,
             ProjectRepository projectRepository,
@@ -60,7 +58,6 @@ public class ProjectImportService {
             @Value("${app.import.max-file-bytes:524288}") long maxFileBytes,
             @Value("${app.import.max-qubits:16}") int maxQubits) {
         this.validator = validator;
-        this.scanner = scanner;
         this.proxy = proxy;
         this.projectService = projectService;
         this.projectRepository = projectRepository;
@@ -118,17 +115,9 @@ public class ProjectImportService {
             ImportItemResultDTO res = itemResults.get(i);
             try {
                 ImportContentValidator.ValidatedItem v = validator.validate(item);
-                VirusScanner.ScanResult scan = scanner.scan(v.utf8());
-                if (!scan.clean()) {
-                    throw new ImportException(ImportException.MALWARE_DETECTED,
-                            "Rejected by antivirus (" + scan.signature() + ")");
-                }
                 validIndices.add(i);
                 validatedItems.add(v);
             } catch (ImportException e) {
-                if (ImportException.ANTIVIRUS_UNAVAILABLE.equals(e.getErrorCode())) {
-                    throw e; // aborta petición entera con 503
-                }
                 res.setSuccess(false);
                 res.setErrorCode(e.getErrorCode());
                 res.setError(e.getMessage());
@@ -253,11 +242,6 @@ public class ProjectImportService {
 
         ImportItemDTO item = new ImportItemDTO(req.getFileName(), req.getFormat(), "temp", req.getCode());
         ImportContentValidator.ValidatedItem v = validator.validate(item);
-        VirusScanner.ScanResult scan = scanner.scan(v.utf8());
-        if (!scan.clean()) {
-            throw new ImportException(ImportException.MALWARE_DETECTED,
-                    "Rejected by antivirus (" + scan.signature() + ")");
-        }
 
         List<QConvertResult> results = proxy.convertBatch(List.of(v.code()), List.of(v.format().getId()), "quirk");
         if (results.isEmpty() || !results.get(0).success()) {

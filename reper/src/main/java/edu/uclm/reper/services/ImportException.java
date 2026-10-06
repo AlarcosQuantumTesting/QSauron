@@ -7,7 +7,6 @@ public class ImportException extends RuntimeException {
     public static final String EMPTY_FILE = "EMPTY_FILE";
     public static final String FILE_TOO_LARGE = "FILE_TOO_LARGE";
     public static final String NOT_TEXT = "NOT_TEXT";
-    public static final String MALWARE_DETECTED = "MALWARE_DETECTED";
     public static final String INVALID_CONTENT = "INVALID_CONTENT";
     public static final String CONVERSION_FAILED = "CONVERSION_FAILED";
     public static final String INVALID_CIRCUIT = "INVALID_CIRCUIT";
@@ -16,7 +15,6 @@ public class ImportException extends RuntimeException {
     public static final String BAD_REQUEST = "BAD_REQUEST";
     public static final String TOO_MANY_FILES = "TOO_MANY_FILES";
     public static final String TOTAL_TOO_LARGE = "TOTAL_TOO_LARGE";
-    public static final String ANTIVIRUS_UNAVAILABLE = "ANTIVIRUS_UNAVAILABLE";
     public static final String CONVERTER_UNAVAILABLE = "CONVERTER_UNAVAILABLE";
 
     private final String errorCode;

@@ -30,7 +30,6 @@ import static org.mockito.Mockito.*;
 class ProjectImportServiceTest {
 
     private ProjectImportService service;
-    private VirusScanner scanner;
     private QConvertProxy proxy;
     private ProjectService projectService;
     private ProjectRepository projectRepository;
@@ -43,7 +42,6 @@ class ProjectImportServiceTest {
     @BeforeEach
     void setUp() {
         ImportContentValidator validator = new ImportContentValidator(524288);
-        scanner = mock(VirusScanner.class);
         proxy = mock(QConvertProxy.class);
         projectService = mock(ProjectService.class);
         projectRepository = mock(ProjectRepository.class);
@@ -52,7 +50,6 @@ class ProjectImportServiceTest {
 
         service = new ProjectImportService(
                 validator,
-                scanner,
                 proxy,
                 projectService,
                 projectRepository,
@@ -64,7 +61,6 @@ class ProjectImportServiceTest {
         );
 
         when(userRepository.findById(email)).thenReturn(Optional.of(new User(email)));
-        when(scanner.scan(any())).thenReturn(new VirusScanner.ScanResult(true, null));
         when(projectService.saveProject(any())).thenAnswer(inv -> inv.getArgument(0));
     }
 
@@ -115,30 +111,7 @@ class ProjectImportServiceTest {
         assertEquals(1, codesCaptor.getValue().size());
     }
 
-    @Test
-    void testMalwareFoundRejectsWithoutConversion() {
-        ImportItemDTO item = new ImportItemDTO("bell.qasm", "qasm", "bell", "OPENQASM 2.0;\nqreg q[2];");
-        when(scanner.scan(any())).thenReturn(new VirusScanner.ScanResult(false, "Eicar-Test-Signature"));
 
-        ImportResultDTO res = service.importProjects(email, List.of(item));
-
-        assertEquals(0, res.getSuccessCount());
-        assertEquals(1, res.getFailureCount());
-        assertEquals(ImportException.MALWARE_DETECTED, res.getItems().get(0).getErrorCode());
-        verify(proxy, never()).convertBatch(any(), any(), any());
-    }
-
-    @Test
-    void testAntivirusUnavailableAbortsEntireRequest() {
-        ImportItemDTO item = new ImportItemDTO("bell.qasm", "qasm", "bell", "OPENQASM 2.0;\nqreg q[2];");
-        when(scanner.scan(any())).thenThrow(new ImportException(ImportException.ANTIVIRUS_UNAVAILABLE, "ClamAV down", 503));
-
-        ImportException ex = assertThrows(ImportException.class, () ->
-                service.importProjects(email, List.of(item)));
-        assertEquals(ImportException.ANTIVIRUS_UNAVAILABLE, ex.getErrorCode());
-        assertEquals(503, ex.getHttpStatus());
-        verify(projectService, never()).saveProject(any());
-    }
 
     @Test
     void testConversionFailedFromProxy() {
