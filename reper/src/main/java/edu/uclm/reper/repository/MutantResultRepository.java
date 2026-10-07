@@ -60,4 +60,10 @@ public interface MutantResultRepository extends JpaRepository<MutantResult, Long
     @Query("SELECT (COUNT(mr) * 1.0 / (SELECT COUNT(m) FROM Mutant m WHERE m.mutantCycle.id = :cycleId)) " +
             "FROM MutantResult mr WHERE mr.result = 'KILLED' AND mr.mutant.mutantCycle.id = :cycleId")
     Double calculateMutationScore(@Param("cycleId") Long cycleId);
+
+    @Query("SELECT r.mutant.id, r.id, r.result FROM MutantResult r WHERE r.mutant.mutantCycle.project.id = :projectId AND r.mutant.mutantCycle.id = :cycleId")
+    List<Object[]> findMatrixResults(@Param("projectId") String projectId, @Param("cycleId") int cycleId);
+
+    @Query("SELECT r.id, r.result FROM MutantResult r WHERE r.mutant.id = :mutantId")
+    List<Object[]> findByMutantIdLight(@Param("mutantId") int mutantId);
 }

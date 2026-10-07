@@ -79,5 +79,11 @@ public interface MutantCycleRepository extends JpaRepository<MutantCycle, Mutant
             + "  GROUP BY m.id, m.mutant_cycle_id, m.project_id) t "
             + "GROUP BY t.cycle_id, t.project_id", nativeQuery = true)
     List<Object[]> countMutantStatesByExperimentId(@Param("experimentId") String experimentId);
+
+    @Query("SELECT mc FROM MutantCycle mc LEFT JOIN FETCH mc.execConfig WHERE mc.project.id = :projectId ORDER BY mc.id")
+    List<MutantCycle> findWithExecConfigByProjectId(@Param("projectId") String projectId);
+
+    @Query("SELECT mc FROM MutantCycle mc LEFT JOIN FETCH mc.execConfig WHERE mc.project.id = :projectId AND mc.id = :cycleId")
+    java.util.Optional<MutantCycle> findWithExecConfig(@Param("projectId") String projectId, @Param("cycleId") int cycleId);
 }
 

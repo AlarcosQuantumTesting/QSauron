@@ -55,4 +55,7 @@ public interface ProjectRepository extends JpaRepository<Project, String> {
             """, nativeQuery = true)
     List<ProjectLightSummaryDTO> findLightProjectsByUserId(@Param("userId") String userId);
 
+    @Query("SELECT COUNT(p) > 0 FROM Project p JOIN p.users u WHERE p.id = :projectId AND u.id = :userId")
+    boolean isUserInProject(@Param("projectId") String projectId, @Param("userId") String userId);
+
 }

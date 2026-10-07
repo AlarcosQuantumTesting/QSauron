@@ -7,6 +7,8 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
+import org.springframework.data.domain.Pageable;
 
 /**
  * Repository interface for Mutant entity operations
@@ -60,4 +62,16 @@ public interface MutantRepository extends JpaRepository<Mutant, Long> {
     @Query("SELECT m FROM Mutant m WHERE m.column BETWEEN :minColumn AND :maxColumn AND m.row BETWEEN :minRow AND :maxRow")
     List<Mutant> findByPositionRange(@Param("minColumn") int minColumn, @Param("maxColumn") int maxColumn,
             @Param("minRow") int minRow, @Param("maxRow") int maxRow);
+
+    @Query("SELECT m.mutantCycle.id, COUNT(m) FROM Mutant m WHERE m.mutantCycle.project.id = :projectId GROUP BY m.mutantCycle.id")
+    List<Object[]> countByCycle(@Param("projectId") String projectId);
+
+    @Query("SELECT m.id, m.index, m.column, m.row, o.name, m.oracleName, m.mutationDetail FROM Mutant m LEFT JOIN m.operator o WHERE m.mutantCycle.project.id = :projectId AND m.mutantCycle.id = :cycleId ORDER BY m.index")
+    List<Object[]> findMatrixRows(@Param("projectId") String projectId, @Param("cycleId") int cycleId);
+
+    @Query("SELECT m FROM Mutant m LEFT JOIN FETCH m.quirkCircuit q LEFT JOIN FETCH q.quirkCircuit WHERE m.mutantCycle.project.id = :projectId AND m.mutantCycle.id = :cycleId AND m.index = :mutantIndex")
+    Optional<Mutant> findWithCircuit(@Param("projectId") String projectId, @Param("cycleId") int cycleId, @Param("mutantIndex") int mutantIndex);
+
+    @Query("SELECT m FROM Mutant m LEFT JOIN FETCH m.quirkCircuit q LEFT JOIN FETCH q.quirkCircuit WHERE m.mutantCycle.project.id = :projectId AND m.mutantCycle.id = :cycleId AND m.index >= :fromIndex ORDER BY m.index")
+    List<Mutant> findCircuitsPage(@Param("projectId") String projectId, @Param("cycleId") int cycleId, @Param("fromIndex") int fromIndex, Pageable page);
 }
