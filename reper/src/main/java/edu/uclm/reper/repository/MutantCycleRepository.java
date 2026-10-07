@@ -85,5 +85,8 @@ public interface MutantCycleRepository extends JpaRepository<MutantCycle, Mutant
 
     @Query("SELECT mc FROM MutantCycle mc LEFT JOIN FETCH mc.execConfig WHERE mc.project.id = :projectId AND mc.id = :cycleId")
     java.util.Optional<MutantCycle> findWithExecConfig(@Param("projectId") String projectId, @Param("cycleId") int cycleId);
+
+    @Query("SELECT mc.project.id, mc.id, mc.name FROM MutantCycle mc WHERE mc.project.id IN :projectIds ORDER BY mc.id")
+    List<Object[]> findSidebarCycles(@Param("projectIds") List<String> projectIds);
 }
 

@@ -1,6 +1,7 @@
 package edu.uclm.reper.services;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +67,9 @@ public class ProjectService {
     @Autowired
     private MutantCycleRepository mutantCycleRepository;
 
+    @Autowired
+    private edu.uclm.reper.repository.MutantRepository mutantRepository;
+
     // Crea un nuevo proyecto y lo asocia con un usuario
     public Project createProjectForUser(String projectName, String userId) {
         Optional<User> userOpt = userRepository.findById(userId);
@@ -126,48 +130,91 @@ public class ProjectService {
 
     // Obtiene version aligerada de proyectos para el sidebar
     public List<ProjectSummaryDTO> getSidebarProjectsByUser(String email) throws Exception {
-        List<Project> projects = projectRepository.findProjectsByUserId(email);
+        List<Object[]> projectRows = projectRepository.findSidebarRows(email);
+        if (projectRows == null || projectRows.isEmpty()) {
+            return Collections.emptyList();
+        }
 
-        return projects.stream().map(project -> {
-            List<MutantCycleSummaryDTO> cycleDTOs = new ArrayList<>();
-            if (project.getMutantCycles() != null) {
-                cycleDTOs = project.getMutantCycles().stream().map(cycle -> {
-                    List<MutantSummaryDTO> mutantDTOs = new ArrayList<>();
-                    if (cycle.getMutants() != null) {
-                        mutantDTOs = cycle.getMutants().stream().map(mutant -> {
-                            OperatorSummaryDTO opDto = null;
-                            if (mutant.getOperator() != null) {
-                                opDto = new OperatorSummaryDTO(mutant.getOperator().getName());
-                            }
-                            return new MutantSummaryDTO(mutant.getIndex(),
-                                    opDto, mutant.getOracleName(), mutant.getMutationDetail());
-                        }).collect(Collectors.toList());
-                    }
-                    return new MutantCycleSummaryDTO(cycle.getId(), cycle.getName(), mutantDTOs);
-                }).collect(Collectors.toList());
+        List<String> projectIds = new ArrayList<>();
+        Map<String, ProjectSummaryDTO> projectMap = new java.util.LinkedHashMap<>();
+        for (Object[] row : projectRows) {
+            String pId = (String) row[0];
+            String pName = (String) row[1];
+            projectIds.add(pId);
+            ProjectSummaryDTO pDto = new ProjectSummaryDTO(pId, pName, new ArrayList<>());
+            if (row[2] != null) {
+                pDto.setQubits(((Number) row[2]).intValue());
             }
-            ProjectSummaryDTO pDto = new ProjectSummaryDTO(project.getId(), project.getName(), cycleDTOs);
-            if (project.getQProgram() != null) {
-                pDto.setQubits(project.getQProgram().getQubits());
-                if (project.getQProgram().getInputQubits() != null && project.getQProgram().getInputQubits().length > 0) {
-                    StringBuilder sb = new StringBuilder();
-                    for (int i = 0; i < project.getQProgram().getInputQubits().length; i++) {
-                        if (i > 0) sb.append(",");
-                        sb.append(project.getQProgram().getInputQubits()[i]);
-                    }
-                    pDto.setInputQubits(sb.toString());
-                }
-                if (project.getQProgram().getOutputQubits() != null && project.getQProgram().getOutputQubits().length > 0) {
-                    StringBuilder sb = new StringBuilder();
-                    for (int i = 0; i < project.getQProgram().getOutputQubits().length; i++) {
-                        if (i > 0) sb.append(",");
-                        sb.append(project.getQProgram().getOutputQubits()[i]);
-                    }
-                    pDto.setOutputQubits(sb.toString());
-                }
+            pDto.setInputQubits(formatQubitsArray(row[3]));
+            pDto.setOutputQubits(formatQubitsArray(row[4]));
+            projectMap.put(pId, pDto);
+        }
+
+        List<Object[]> cycleRows = mutantCycleRepository.findSidebarCycles(projectIds);
+        List<Object[]> mutantRows = mutantRepository.findSidebarMutants(projectIds);
+
+        Map<String, List<MutantSummaryDTO>> mutantsByCycle = new HashMap<>();
+        if (mutantRows != null) {
+            for (Object[] mRow : mutantRows) {
+                String pId = (String) mRow[0];
+                int cId = ((Number) mRow[1]).intValue();
+                int mIndex = ((Number) mRow[2]).intValue();
+                String opName = (String) mRow[3];
+                OperatorSummaryDTO opDto = opName != null ? new OperatorSummaryDTO(opName) : null;
+                String oracleName = (String) mRow[4];
+                String mutationDetail = (String) mRow[5];
+
+                String key = pId + ":" + cId;
+                mutantsByCycle.computeIfAbsent(key, k -> new ArrayList<>())
+                        .add(new MutantSummaryDTO(mIndex, opDto, oracleName, mutationDetail));
             }
-            return pDto;
-        }).collect(Collectors.toList());
+        }
+
+        Map<String, List<MutantCycleSummaryDTO>> cyclesByProject = new HashMap<>();
+        if (cycleRows != null) {
+            for (Object[] cRow : cycleRows) {
+                String pId = (String) cRow[0];
+                int cId = ((Number) cRow[1]).intValue();
+                String cName = (String) cRow[2];
+
+                List<MutantSummaryDTO> mutants = mutantsByCycle.getOrDefault(pId + ":" + cId, new ArrayList<>());
+                cyclesByProject.computeIfAbsent(pId, k -> new ArrayList<>())
+                        .add(new MutantCycleSummaryDTO(cId, cName, mutants));
+            }
+        }
+
+        for (Map.Entry<String, ProjectSummaryDTO> entry : projectMap.entrySet()) {
+            String pId = entry.getKey();
+            ProjectSummaryDTO pDto = entry.getValue();
+            List<MutantCycleSummaryDTO> cycles = cyclesByProject.getOrDefault(pId, new ArrayList<>());
+            pDto.setMutantCycles(cycles);
+        }
+
+        return new ArrayList<>(projectMap.values());
+    }
+
+    private String formatQubitsArray(Object obj) {
+        if (obj == null) return null;
+        if (obj instanceof int[]) {
+            int[] arr = (int[]) obj;
+            if (arr.length == 0) return null;
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < arr.length; i++) {
+                if (i > 0) sb.append(",");
+                sb.append(arr[i]);
+            }
+            return sb.toString();
+        } else if (obj instanceof Integer[]) {
+            Integer[] arr = (Integer[]) obj;
+            if (arr.length == 0) return null;
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < arr.length; i++) {
+                if (i > 0) sb.append(",");
+                sb.append(arr[i]);
+            }
+            return sb.toString();
+        }
+        return null;
     }
 
     public List<ProjectLightSummaryDTO> getLightSidebarProjectsByUser(String email)
