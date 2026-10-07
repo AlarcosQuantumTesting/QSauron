@@ -18,7 +18,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.uclm.reper.model.OperatorType;
 import edu.uclm.reper.services.QumuService;
 import edu.uclm.reper.services.ProjectService;
+import edu.uclm.reper.services.QuMuLazyLoadService;
 import edu.uclm.reper.dto.ProjectSummaryDTO;
+import edu.uclm.reper.dto.QuMuCircuitDTO;
+import edu.uclm.reper.dto.QuMuCycleMatrixDTO;
+import edu.uclm.reper.dto.QuMuMutantCircuitDTO;
+import edu.uclm.reper.dto.QuMuMutantDTO;
+import edu.uclm.reper.dto.QuMuProjectDTO;
 import jakarta.servlet.http.HttpServletRequest;
 
 @RestController()
@@ -30,6 +36,9 @@ public class QuMuController extends BaseController {
 
     @Autowired
     private ProjectService projectService;
+
+    @Autowired
+    private QuMuLazyLoadService qumuLazyLoadService;
 
     @GetMapping("/getoperatorsByFamily")
     public List<OperatorType> getOperatorsByFamily() {
@@ -105,4 +114,87 @@ public class QuMuController extends BaseController {
         }
     }
 
+    @PostMapping("/getProjectLight")
+    public ResponseEntity<?> getProjectLight(@RequestBody Map<String, Object> body, HttpServletRequest req) {
+        String email = body != null ? (String) body.get("email") : null;
+        this.validateCookie(req, email);
+        try {
+            String projectId = body != null ? (String) body.get("projectId") : null;
+            if (projectId == null || email == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Missing required fields: email, projectId"));
+            }
+            QuMuProjectDTO project = qumuLazyLoadService.getProject(email, projectId);
+            return ResponseEntity.ok(project);
+        } catch (ResponseStatusException rse) {
+            throw rse;
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/getCycleMatrix")
+    public ResponseEntity<?> getCycleMatrix(@RequestBody Map<String, Object> body, HttpServletRequest req) {
+        String email = body != null ? (String) body.get("email") : null;
+        this.validateCookie(req, email);
+        try {
+            String projectId = body != null ? (String) body.get("projectId") : null;
+            Object cycleIdObj = body != null ? body.get("cycleId") : null;
+            if (projectId == null || email == null || !(cycleIdObj instanceof Number)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Missing or invalid required fields: email, projectId, cycleId"));
+            }
+            int cycleId = ((Number) cycleIdObj).intValue();
+            QuMuCycleMatrixDTO matrix = qumuLazyLoadService.getCycleMatrix(email, projectId, cycleId);
+            return ResponseEntity.ok(matrix);
+        } catch (ResponseStatusException rse) {
+            throw rse;
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/getMutant")
+    public ResponseEntity<?> getMutant(@RequestBody Map<String, Object> body, HttpServletRequest req) {
+        String email = body != null ? (String) body.get("email") : null;
+        this.validateCookie(req, email);
+        try {
+            String projectId = body != null ? (String) body.get("projectId") : null;
+            Object cycleIdObj = body != null ? body.get("cycleId") : null;
+            Object mutantIndexObj = body != null ? body.get("mutantIndex") : null;
+            if (projectId == null || email == null || !(cycleIdObj instanceof Number) || !(mutantIndexObj instanceof Number)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Missing or invalid required fields: email, projectId, cycleId, mutantIndex"));
+            }
+            int cycleId = ((Number) cycleIdObj).intValue();
+            int mutantIndex = ((Number) mutantIndexObj).intValue();
+            QuMuMutantDTO mutant = qumuLazyLoadService.getMutant(email, projectId, cycleId, mutantIndex);
+            return ResponseEntity.ok(mutant);
+        } catch (ResponseStatusException rse) {
+            throw rse;
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/getMutantCircuits")
+    public ResponseEntity<?> getMutantCircuits(@RequestBody Map<String, Object> body, HttpServletRequest req) {
+        String email = body != null ? (String) body.get("email") : null;
+        this.validateCookie(req, email);
+        try {
+            String projectId = body != null ? (String) body.get("projectId") : null;
+            Object cycleIdObj = body != null ? body.get("cycleId") : null;
+            Object fromIndexObj = body != null ? body.get("fromIndex") : null;
+            Object limitObj = body != null ? body.get("limit") : null;
+            if (projectId == null || email == null || !(cycleIdObj instanceof Number) || !(fromIndexObj instanceof Number) || !(limitObj instanceof Number)) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Missing or invalid required fields: email, projectId, cycleId, fromIndex, limit"));
+            }
+            int cycleId = ((Number) cycleIdObj).intValue();
+            int fromIndex = ((Number) fromIndexObj).intValue();
+            int limit = ((Number) limitObj).intValue();
+            List<QuMuMutantCircuitDTO> circuits = qumuLazyLoadService.getMutantCircuits(email, projectId, cycleId, fromIndex, limit);
+            return ResponseEntity.ok(circuits);
+        } catch (ResponseStatusException rse) {
+            throw rse;
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
 }
