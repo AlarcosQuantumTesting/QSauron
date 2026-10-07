@@ -43,7 +43,7 @@ public class QConvertProxy {
         this.objectMapper = new ObjectMapper();
         this.webClient = WebClient.builder()
                 .baseUrl(url)
-                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(32 * 1024 * 1024))
+                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(-1))
                 .build();
     }
 
@@ -113,13 +113,15 @@ public class QConvertProxy {
                 }
                 Map<String, Object> requestPayload = Map.of("items", chunk);
 
-                JsonNode response = webClient.post()
+                String responseStr = webClient.post()
                         .uri("/api/convert/batch")
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(BodyInserters.fromValue(requestPayload))
                         .retrieve()
-                        .bodyToMono(JsonNode.class)
+                        .bodyToMono(String.class)
                         .block(Duration.ofSeconds(timeoutSeconds));
+
+                JsonNode response = responseStr != null ? objectMapper.readTree(responseStr) : null;
 
                 if (response == null || !response.has("results") || !response.get("results").isArray()) {
                     logger.error("Invalid response from q-convert-api batch: {}", response);
@@ -171,22 +173,32 @@ public class QConvertProxy {
                     .body(BodyInserters.fromValue(body))
                     .exchangeToMono(clientResponse -> {
                         if (clientResponse.statusCode().is4xxClientError()) {
-                            return clientResponse.bodyToMono(JsonNode.class)
-                                    .map(json -> {
-                                        String err = json.has("error") ? json.get("error").asText() : json.toString();
-                                        return new QConvertResult(false, null, err);
+                            return clientResponse.bodyToMono(String.class)
+                                    .map(str -> {
+                                        try {
+                                            JsonNode json = objectMapper.readTree(str);
+                                            String err = json.has("error") ? json.get("error").asText() : json.toString();
+                                            return new QConvertResult(false, null, err);
+                                        } catch (Exception e) {
+                                            return new QConvertResult(false, null, str != null ? str : "Client error");
+                                        }
                                     })
                                     .defaultIfEmpty(new QConvertResult(false, null, "Conversion failed with client error"));
                         }
                         if (clientResponse.statusCode().is5xxServerError()) {
                             return Mono.error(new ImportException(ImportException.CONVERTER_UNAVAILABLE, "Code converter is not available", 503));
                         }
-                        return clientResponse.bodyToMono(JsonNode.class)
-                                .map(json -> {
-                                    boolean success = json.has("success") && json.get("success").asBoolean();
-                                    String output = json.has("output") ? json.get("output").asText() : null;
-                                    String error = json.has("error") ? json.get("error").asText() : null;
-                                    return new QConvertResult(success, output, error);
+                        return clientResponse.bodyToMono(String.class)
+                                .map(str -> {
+                                    try {
+                                        JsonNode json = objectMapper.readTree(str);
+                                        boolean success = json.has("success") && json.get("success").asBoolean();
+                                        String output = json.has("output") ? json.get("output").asText() : null;
+                                        String error = json.has("error") ? json.get("error").asText() : null;
+                                        return new QConvertResult(success, output, error);
+                                    } catch (Exception e) {
+                                        return new QConvertResult(false, null, "Failed to parse response: " + e.getMessage());
+                                    }
                                 });
                     })
                     .block(Duration.ofSeconds(timeoutSeconds));
