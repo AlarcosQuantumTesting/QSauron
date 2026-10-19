@@ -120,6 +120,13 @@ public class ImportContentValidator {
             if (!firstStatement.matches("^OPENQASM\\s+2(\\.0)?\\s*;.*")) {
                 throw new ImportException(ImportException.INVALID_CONTENT, "Missing 'OPENQASM 2.0;' header");
             }
+        } else if (format == ImportFormat.QISKIT || format == ImportFormat.CIRQ) {
+            // Scripts Python: q-convert-api los ejecuta; aquí solo se comprueba que usen la librería
+            String library = format == ImportFormat.QISKIT ? "qiskit" : "cirq";
+            if (!code.matches("(?s).*\\b(import|from)\\s+" + library + "\\b.*")) {
+                throw new ImportException(ImportException.INVALID_CONTENT,
+                        "Not a " + format.getLabel() + " file: missing '" + library + "' import");
+            }
         } else if (format != ImportFormat.QUIL) {
             // Formatos JSON
             JsonNode root;

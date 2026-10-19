@@ -12,7 +12,10 @@ public enum ImportFormat {
     IONQ("ionq", "IonQ (JSON)", List.of(".json"), false),
     QUANTUM_CIRCUIT("quantum-circuit", "Quantum Programming Studio (JSON)", List.of(".json"), true),
     QUBIT_TOASTER("qubit-toaster", "Qubit Toaster (JSON)", List.of(".json"), true),
-    QUIRK("quirk", "Quirk (JSON)", List.of(".json"), true);
+    QUIRK("quirk", "Quirk (JSON)", List.of(".json"), true),
+    // Scripts Python: q-convert-api los ejecuta y los pasa a QASM (qasm2.dumps / cirq.qasm)
+    QISKIT("qiskit", "Qiskit (Python)", List.of(".py"), true),
+    CIRQ("cirq", "Cirq (Python)", List.of(".py"), true);
 
     private final String id;
     private final String label;

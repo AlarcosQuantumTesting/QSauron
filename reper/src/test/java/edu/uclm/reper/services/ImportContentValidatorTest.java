@@ -79,8 +79,58 @@ class ImportContentValidatorTest {
     }
 
     @Test
+    void testAcceptedQiskit() {
+        ImportItemDTO item = new ImportItemDTO("bell.py", "qiskit", "bell",
+                "from qiskit import QuantumCircuit\nqc = QuantumCircuit(2, 2)\nqc.h(0)\nqc.cx(0, 1)\n");
+        var res = validator.validate(item);
+        assertEquals(ImportFormat.QISKIT, res.format());
+        assertEquals("bell.py", res.fileName());
+    }
+
+    @Test
+    void testAcceptedCirq() {
+        ImportItemDTO item = new ImportItemDTO("bell.py", "cirq", "bell",
+                "import cirq\nq = cirq.LineQubit.range(2)\ncircuit = cirq.Circuit(cirq.H(q[0]), cirq.CNOT(*q))\n");
+        var res = validator.validate(item);
+        assertEquals(ImportFormat.CIRQ, res.format());
+    }
+
+    @Test
+    void testAcceptedPastedQiskit() {
+        ImportItemDTO item = new ImportItemDTO(null, "qiskit", "pegado",
+                "# comentario\nimport qiskit\nqc = qiskit.QuantumCircuit(1)\n");
+        assertEquals(ImportFormat.QISKIT, validator.validate(item).format());
+    }
+
+    @Test
+    void testRejectedPythonWithoutLibraryImport() {
+        ImportItemDTO qiskit = new ImportItemDTO("x.py", "qiskit", "x", "import cirq\ncircuit = cirq.Circuit()\n");
+        ImportException ex = assertThrows(ImportException.class, () -> validator.validate(qiskit));
+        assertEquals(ImportException.INVALID_CONTENT, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("qiskit"));
+
+        ImportItemDTO cirq = new ImportItemDTO("x.py", "cirq", "x", "from qiskit import QuantumCircuit\n");
+        assertThrows(ImportException.class, () -> validator.validate(cirq));
+    }
+
+    @Test
+    void testRejectedPythonWrongExtension() {
+        ImportItemDTO item = new ImportItemDTO("bell.json", "qiskit", "bell", "from qiskit import QuantumCircuit\n");
+        ImportException ex = assertThrows(ImportException.class, () -> validator.validate(item));
+        assertEquals(ImportException.INVALID_EXTENSION, ex.getErrorCode());
+    }
+
+    @Test
+    void testPythonFormatsExposed() {
+        assertEquals(ImportFormat.QISKIT, ImportFormat.fromId("qiskit").orElseThrow());
+        assertEquals(ImportFormat.CIRQ, ImportFormat.fromId("CIRQ").orElseThrow());
+        assertTrue(ImportFormat.QISKIT.isRepresentable());
+        assertTrue(ImportFormat.CIRQ.acceptsExtension(".py"));
+    }
+
+    @Test
     void testRejectedInvalidFormat() {
-        ImportItemDTO item = new ImportItemDTO("bell.qasm", "qiskit", "bell", "x");
+        ImportItemDTO item = new ImportItemDTO("bell.qasm", "braket", "bell", "x");
         ImportException ex = assertThrows(ImportException.class, () -> validator.validate(item));
         assertEquals(ImportException.INVALID_FORMAT, ex.getErrorCode());
     }
