@@ -2,6 +2,7 @@ package edu.uclm.reper.http;
 
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
@@ -18,9 +19,16 @@ public class MutantAnalyticsProxy {
 
     private final WebClient webClient;
 
-    public MutantAnalyticsProxy(@Value("${app.mutantanalytics.url}") String urlMutantAnalytics) {
+    public MutantAnalyticsProxy(String urlMutantAnalytics) {
+        this(urlMutantAnalytics, 67108864);
+    }
+
+    @Autowired
+    public MutantAnalyticsProxy(@Value("${app.mutantanalytics.url}") String urlMutantAnalytics,
+            @Value("${app.mutantanalytics.max-response-bytes:67108864}") int maxResponseBytes) {
         this.webClient = WebClient.builder()
                 .baseUrl(urlMutantAnalytics)
+                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(maxResponseBytes))
                 .build();
     }
 
