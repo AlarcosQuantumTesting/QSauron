@@ -831,7 +831,7 @@ public class ExperimentService {
                 mutant.getMutantResults().add(mr);
             }
         }
-        projectService.saveExecutionsBatch(projectId, cycleId, batch);
+        projectService.saveExperimentBatchResults(batch);
     }
 
     private void markExperimentFinished(String experimentId, String status, String errorMessage, long startTime) {

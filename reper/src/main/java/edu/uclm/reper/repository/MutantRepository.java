@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Pageable;
@@ -74,6 +75,9 @@ public interface MutantRepository extends JpaRepository<Mutant, Long> {
 
     @Query("SELECT m FROM Mutant m LEFT JOIN FETCH m.quirkCircuit q LEFT JOIN FETCH q.quirkCircuit WHERE m.mutantCycle.project.id = :projectId AND m.mutantCycle.id = :cycleId AND m.index >= :fromIndex ORDER BY m.index")
     List<Mutant> findCircuitsPage(@Param("projectId") String projectId, @Param("cycleId") int cycleId, @Param("fromIndex") int fromIndex, Pageable page);
+
+    @Query("SELECT DISTINCT m FROM Mutant m LEFT JOIN FETCH m.mutantResults WHERE m.id IN :ids")
+    List<Mutant> findWithResultsByIdIn(@Param("ids") Collection<Integer> ids);
 
     @Query("SELECT m.mutantCycle.project.id, m.mutantCycle.id, m.index, o.name, m.oracleName, m.mutationDetail FROM Mutant m LEFT JOIN m.operator o WHERE m.mutantCycle.project.id IN :projectIds ORDER BY m.index")
     List<Object[]> findSidebarMutants(@Param("projectIds") List<String> projectIds);

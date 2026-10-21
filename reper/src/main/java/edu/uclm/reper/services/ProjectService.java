@@ -857,6 +857,30 @@ public class ProjectService {
         mutantCycleRepository.save(cycle);
     }
 
+    // Experimentos: solo carga los mutantes del lote (con sus resultados), no el ciclo entero
+    public void saveExperimentBatchResults(List<Mutant> batch) {
+        Map<Integer, Mutant> byId = new HashMap<>();
+        for (Mutant m : batch) {
+            byId.put(m.getId(), m);
+        }
+        for (Mutant target : mutantRepository.findWithResultsByIdIn(byId.keySet())) {
+            Mutant source = byId.get(target.getId());
+            if (source == null || source.getMutantResults() == null) {
+                continue;
+            }
+            List<MutantResult> incomingResults = new ArrayList<>(source.getMutantResults());
+            for (MutantResult result : incomingResults) {
+                result.setMutant(target);
+            }
+            if (target.getMutantResults() == null) {
+                target.setMutantResults(new ArrayList<>());
+            } else {
+                target.getMutantResults().clear();
+            }
+            target.getMutantResults().addAll(incomingResults);
+        }
+    }
+
     public void deleteMutantCycle(String projectId, int cycleId) throws Exception {
         mutantCycleRepository.deleteById(new MutantCycleId(projectId, cycleId));
     }
