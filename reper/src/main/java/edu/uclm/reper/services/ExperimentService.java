@@ -816,10 +816,8 @@ public class ExperimentService {
         for (int mIdx = 0; mIdx < Math.min(batch.size(), stratResults.size()); mIdx++) {
             Mutant mutant = batch.get(mIdx);
             List<Map<String, Object>> resultsList = stratResults.get(mIdx);
-            if (mutant.getMutantResults() == null) {
-                mutant.setMutantResults(new ArrayList<>());
-            }
-            mutant.getMutantResults().clear();
+            // El mutante viene de BD sin sesion: su coleccion perezosa no se puede tocar, se sustituye por una lista nueva
+            mutant.setMutantResults(new ArrayList<>());
 
             for (int rIdx = 0; rIdx < resultsList.size(); rIdx++) {
                 Map<String, Object> rMap = resultsList.get(rIdx);
