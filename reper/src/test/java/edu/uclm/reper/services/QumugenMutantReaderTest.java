@@ -77,4 +77,51 @@ class QumugenMutantReaderTest {
         assertSame(root, QumugenMutantReader.circuitOf(root));
         assertNull(QumugenMutantReader.circuitOf(mapper.readTree("{\"x\":1}")));
     }
+
+    private static final String THREE = "[{\"mutantIndex\":0},{\"mutantIndex\":1},{\"mutantIndex\":2}]";
+
+    private List<Integer> readIndexes(java.io.InputStream in) throws IOException {
+        List<Integer> seen = new ArrayList<>();
+        QumugenMutantReader.forEachMutant(in, mapper, node -> seen.add(node.get("mutantIndex").asInt()));
+        return seen;
+    }
+
+    @Test
+    void descargaYLeeIgualQueDirecto(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) throws IOException {
+        java.nio.file.Path file = dir.resolve("m.json");
+        QumugenMutantReader.download(stream(THREE), file);
+        assertEquals(List.of(0, 1, 2), readIndexes(QumugenMutantReader.open(file, false)));
+    }
+
+    @Test
+    void descargaGzipYLeeIgual(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) throws IOException {
+        java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+        try (java.util.zip.GZIPOutputStream gz = new java.util.zip.GZIPOutputStream(bos)) {
+            gz.write(THREE.getBytes(StandardCharsets.UTF_8));
+        }
+        java.nio.file.Path file = dir.resolve("m.json.gz");
+        QumugenMutantReader.download(new ByteArrayInputStream(bos.toByteArray()), file);
+        assertEquals(List.of(0, 1, 2), readIndexes(QumugenMutantReader.open(file, true)));
+    }
+
+    @Test
+    void descargaCortadaIndicaMbYSegundos(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) {
+        IOException original = new IOException("Premature EOF");
+        java.io.InputStream broken = new java.io.InputStream() {
+            int sent = 0;
+
+            @Override
+            public int read() throws IOException {
+                if (sent++ < 1000)
+                    return 'x';
+                throw original;
+            }
+        };
+        IOException e = assertThrows(IOException.class,
+                () -> QumugenMutantReader.download(broken, dir.resolve("m.json")));
+        assertTrue(e.getMessage().contains("cortada tras"), e.getMessage());
+        assertTrue(e.getMessage().contains(" MB y "), e.getMessage());
+        assertTrue(e.getMessage().contains("Premature EOF"), e.getMessage());
+        assertSame(original, e.getCause());
+    }
 }

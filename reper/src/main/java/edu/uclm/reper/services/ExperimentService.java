@@ -1,6 +1,9 @@
 package edu.uclm.reper.services;
 
+import java.io.InputStream;
 import java.net.ConnectException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -392,29 +395,47 @@ public class ExperimentService {
                         .toList());
             }
 
-            HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, createJsonHeaders());
-
-            Integer count = restTemplate.execute(qumugenUrl + "/qumugen/generateQuirkMutants", HttpMethod.PUT,
-                    restTemplate.httpEntityCallback(request),
-                    response -> {
-                        List<Mutant> lote = new ArrayList<>(200);
-                        int[] index = { 0 };
-                        QumugenMutantReader.forEachMutant(response.getBody(), objectMapper, data -> {
-                            lote.add(buildMutant(data, index[0]++, cycle, opsByName, qProgram));
-                            if (lote.size() == 200) {
-                                mutantRepository.saveAll(lote);
-                                lote.clear();
-                            }
-                            if (index[0] % 1000 == 0) {
-                                logger.info("exp={} mutantes guardados={}", experimentId, index[0]);
-                            }
+            HttpHeaders headers = createJsonHeaders();
+            headers.set(HttpHeaders.ACCEPT_ENCODING, "gzip");
+            Path tmp = Files.createTempFile("qumugen-mutants-", ".json");
+            try {
+                // Primero se descarga la respuesta entera (sin pausas de lectura) y despues se guarda en BD
+                long t0 = System.nanoTime();
+                Boolean gzip = restTemplate.execute(qumugenUrl + "/qumugen/generateQuirkMutants", HttpMethod.PUT,
+                        restTemplate.httpEntityCallback(new HttpEntity<>(body, headers)),
+                        response -> {
+                            QumugenMutantReader.download(response.getBody(), tmp);
+                            return "gzip".equalsIgnoreCase(
+                                    response.getHeaders().getFirst(HttpHeaders.CONTENT_ENCODING));
                         });
-                        if (!lote.isEmpty()) {
+                logger.info("exp={} respuesta de qumugen descargada: {} MB en {} ms (gzip={})", experimentId,
+                        Files.size(tmp) / (1024 * 1024), (System.nanoTime() - t0) / 1_000_000, gzip);
+
+                List<Mutant> lote = new ArrayList<>(200);
+                int[] index = { 0 };
+                try (InputStream in = QumugenMutantReader.open(tmp, Boolean.TRUE.equals(gzip))) {
+                    QumugenMutantReader.forEachMutant(in, objectMapper, data -> {
+                        lote.add(buildMutant(data, index[0]++, cycle, opsByName, qProgram));
+                        if (lote.size() == 200) {
                             mutantRepository.saveAll(lote);
+                            lote.clear();
                         }
-                        return index[0];
+                        if (index[0] % 1000 == 0) {
+                            logger.info("exp={} mutantes guardados={}", experimentId, index[0]);
+                        }
                     });
-            return count != null ? count : 0;
+                }
+                if (!lote.isEmpty()) {
+                    mutantRepository.saveAll(lote);
+                }
+                return index[0];
+            } finally {
+                try {
+                    Files.deleteIfExists(tmp);
+                } catch (java.io.IOException e) {
+                    logger.warn("No se pudo borrar el fichero temporal {}: {}", tmp, e.getMessage());
+                }
+            }
         } catch (Exception e) {
             logger.error("Error calling qumugen generateQuirkMutants: {}", e.getMessage(), e);
             String message = "Error al generar mutantes en qumugen: " + e.getMessage();
