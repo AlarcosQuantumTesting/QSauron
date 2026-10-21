@@ -169,6 +169,9 @@ public class ExperimentService {
 
         CompletableFuture.runAsync(() -> {
             runExperimentAsync(experimentId, dto, userEmail);
+        }).exceptionally(t -> {
+            logger.error("Tarea de experimento {} terminó con error no capturado", experimentId, t);
+            return null;
         });
 
         return experiment;
@@ -220,6 +223,19 @@ public class ExperimentService {
             Optional<Experiment> expOpt = experimentRepository.findByIdWithDetails(experimentId);
             if (expOpt.isPresent()) {
                 notificationService.sendExperimentFailedEmail(expOpt.get(), userEmail, e.getMessage());
+            }
+        } catch (Throwable t) {
+            logger.error("Error grave ejecutando experimento {}: {}", experimentId, t.toString(), t);
+            // Con la memoria agotada guardar en BD tambien puede fallar: no debe tapar el log
+            try {
+                String message = t instanceof OutOfMemoryError ? "reper se quedó sin memoria (OutOfMemoryError)"
+                        : "Error interno: " + t;
+                markExperimentFinished(experimentId, "FAILED", message, startTime);
+                Optional<Experiment> expOpt = experimentRepository.findByIdWithDetails(experimentId);
+                if (expOpt.isPresent()) {
+                    notificationService.sendExperimentFailedEmail(expOpt.get(), userEmail, message);
+                }
+            } catch (Throwable ignored) {
             }
         }
     }
