@@ -27,6 +27,7 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
@@ -57,6 +58,7 @@ import edu.uclm.reper.model.Result;
 import edu.uclm.reper.model.User;
 import edu.uclm.reper.repository.ExperimentRepository;
 import edu.uclm.reper.repository.MutantCycleRepository;
+import edu.uclm.reper.repository.MutantRepository;
 import edu.uclm.reper.repository.OperatorRepository;
 import edu.uclm.reper.repository.ProjectRepository;
 import edu.uclm.reper.repository.UserRepository;
@@ -77,6 +79,9 @@ public class ExperimentService {
 
     @Autowired
     private MutantCycleRepository mutantCycleRepository;
+
+    @Autowired
+    private MutantRepository mutantRepository;
 
     @Autowired
     private OperatorRepository operatorRepository;
@@ -173,7 +178,7 @@ public class ExperimentService {
             StringBuilder sb = new StringBuilder();
             for (NoiseConfigDTO nc : effNoise) {
                 sb.append(" ").append(nc.getAxis() != null ? nc.getAxis().trim().toUpperCase() : "?")
-                  .append("/").append(nc.getAngle());
+                        .append("/").append(nc.getAngle());
             }
             logger.info("exp={} noiseConfigs count={}:{}", experimentId, effNoise.size(), sb.toString());
         }
@@ -231,18 +236,17 @@ public class ExperimentService {
         String inputQubits = cc.getInputQubits() != null ? cc.getInputQubits().trim() : "";
         String outputQubits = cc.getOutputQubits() != null ? cc.getOutputQubits().trim() : "";
 
-        // 1. Generate mutants in qumugen
-        long tGenStart = System.nanoTime();
-        List<Map<String, Object>> generatedMutantCircuits = generateMutantsInQumugen(qProgram, dto.getOperatorNames(),
-                inputQubits, dto.effectiveNoiseConfigs());
-        long generateMs = (System.nanoTime() - tGenStart) / 1_000_000;
-
-        // 2. Build and save new MutantCycle
+        // 1. Create the empty MutantCycle
         long tCycleStart = System.nanoTime();
-        MutantCycle newCycle = createAndSaveMutantCycle(project, experimentId, dto, generatedMutantCircuits);
+        MutantCycle newCycle = createEmptyMutantCycle(project, experimentId, dto);
         long createCycleMs = (System.nanoTime() - tCycleStart) / 1_000_000;
 
-        int mutantCount = generatedMutantCircuits != null ? generatedMutantCircuits.size() : 0;
+        // 2. Generate mutants in qumugen and save them in batches
+        long tGenStart = System.nanoTime();
+        int mutantCount = generateAndSaveMutants(qProgram, dto.getOperatorNames(), inputQubits,
+                dto.effectiveNoiseConfigs(), newCycle, experimentId);
+        long generateMs = (System.nanoTime() - tGenStart) / 1_000_000;
+
         logger.info("[PERF] exp={} circuit={} generateMs={} createCycleMs={} mutants={}",
                 experimentId, cc.getProjectId(), generateMs, createCycleMs, mutantCount);
 
@@ -250,8 +254,7 @@ public class ExperimentService {
         executeCycleInQiskitExec(experimentId, project, newCycle, inputQubits, outputQubits, dto);
     }
 
-    private MutantCycle createAndSaveMutantCycle(Project project, String experimentId, CreateExperimentDTO dto,
-            List<Map<String, Object>> generatedMutants) {
+    private MutantCycle createEmptyMutantCycle(Project project, String experimentId, CreateExperimentDTO dto) {
         long tCyclesStart = System.nanoTime();
         List<MutantCycle> existingCycles = mutantCycleRepository.findByProjectId(project.getId());
         int nextCycleId = 1;
@@ -281,71 +284,56 @@ public class ExperimentService {
         cycleExecConfig.setMutantCycle(newCycle);
         newCycle.setExecConfig(cycleExecConfig);
 
-        long tBuildStart = System.nanoTime();
-        Map<String, Operator> opsByName = operatorRepository.findAll().stream()
-                .filter(o -> o.getName() != null)
-                .collect(Collectors.toMap(Operator::getName, o -> o, (a, b) -> a));
-
-        QProgram qProgram = project.getQProgram();
-        List<Mutant> mutantsList = new ArrayList<>();
-        for (int i = 0; i < generatedMutants.size(); i++) {
-            Map<String, Object> mcData = generatedMutants.get(i);
-            Mutant m = new Mutant();
-            m.setIndex(i);
-            m.setMutantCycle(newCycle);
-
-            String opName = (String) mcData.get("mutationOperator");
-            if (opName != null) {
-                Operator op = opsByName.get(opName);
-                if (op != null) {
-                    m.setOperator(op);
-                }
-            }
-
-            if (mcData.get("mutatedColumn") != null) {
-                m.setColumn(((Number) mcData.get("mutatedColumn")).intValue());
-            }
-            if (mcData.get("mutatedRow") != null) {
-                m.setRow(((Number) mcData.get("mutatedRow")).intValue());
-            }
-
-            if (mcData.get("oracleName") != null) m.setOracleName((String) mcData.get("oracleName"));
-            if (mcData.get("mutationDetail") != null) m.setMutationDetail((String) mcData.get("mutationDetail"));
-
-            Map<String, Object> circuitMap = null;
-            if (mcData.get("quirk") instanceof Map) {
-                circuitMap = (Map<String, Object>) mcData.get("quirk");
-            } else if (mcData.get("qCircuit") instanceof Map) {
-                circuitMap = (Map<String, Object>) mcData.get("qCircuit");
-            } else if (mcData.get("circuit") instanceof Map) {
-                circuitMap = (Map<String, Object>) mcData.get("circuit");
-            } else if (mcData.containsKey("cols")) {
-                circuitMap = mcData;
-            }
-
-            if (circuitMap != null && qProgram != null) {
-                QProgram mq = new QProgram();
-                mq.setId(UUID.randomUUID().toString());
-                mq.setQubits(qProgram.getQubits());
-                QCircuit qc = new QCircuit();
-                qc.setId(UUID.randomUUID().toString());
-                qc.setCode(objectMapper.convertValue(circuitMap, JsonNode.class));
-                qc.setQbits(qProgram.getQubits());
-                mq.setQuirkCircuit(qc);
-                m.setQuirkCircuit(mq);
-            }
-            mutantsList.add(m);
-        }
-        newCycle.setMutants(mutantsList);
-        long buildMs = (System.nanoTime() - tBuildStart) / 1_000_000;
+        newCycle.setMutants(new ArrayList<>());
 
         long tSaveStart = System.nanoTime();
         MutantCycle saved = mutantCycleRepository.save(newCycle);
         long saveMs = (System.nanoTime() - tSaveStart) / 1_000_000;
 
-        logger.info("[PERF] createCycle findCyclesMs={} findExpMs={} buildMs={} saveMs={}", findCyclesMs, findExpMs, buildMs, saveMs);
+        logger.info("[PERF] createCycle findCyclesMs={} findExpMs={} saveMs={}", findCyclesMs, findExpMs, saveMs);
 
         return saved;
+    }
+
+    private Mutant buildMutant(JsonNode data, int index, MutantCycle cycle, Map<String, Operator> opsByName,
+            QProgram qProgram) {
+        Mutant m = new Mutant();
+        m.setIndex(index);
+        m.setMutantCycle(cycle);
+
+        JsonNode opNode = data.path("mutationOperator");
+        if (opNode.isTextual()) {
+            Operator op = opsByName.get(opNode.asText());
+            if (op != null) {
+                m.setOperator(op);
+            }
+        }
+
+        if (data.path("mutatedColumn").isNumber()) {
+            m.setColumn(data.get("mutatedColumn").asInt());
+        }
+        if (data.path("mutatedRow").isNumber()) {
+            m.setRow(data.get("mutatedRow").asInt());
+        }
+
+        if (!data.path("oracleName").isMissingNode() && !data.get("oracleName").isNull())
+            m.setOracleName(data.get("oracleName").asText());
+        if (!data.path("mutationDetail").isMissingNode() && !data.get("mutationDetail").isNull())
+            m.setMutationDetail(data.get("mutationDetail").asText());
+
+        JsonNode circuit = QumugenMutantReader.circuitOf(data);
+        if (circuit != null && qProgram != null) {
+            QProgram mq = new QProgram();
+            mq.setId(UUID.randomUUID().toString());
+            mq.setQubits(qProgram.getQubits());
+            QCircuit qc = new QCircuit();
+            qc.setId(UUID.randomUUID().toString());
+            qc.setCode(circuit);
+            qc.setQbits(qProgram.getQubits());
+            mq.setQuirkCircuit(qc);
+            m.setQuirkCircuit(mq);
+        }
+        return m;
     }
 
     private Map<String, Object> extractQuirkCode(JsonNode codeNode) {
@@ -378,9 +366,13 @@ public class ExperimentService {
         return headers;
     }
 
-    private List<Map<String, Object>> generateMutantsInQumugen(QProgram qProgram, List<String> operatorNames,
-            String inputQubits, List<NoiseConfigDTO> noiseConfigs) throws Exception {
+    private int generateAndSaveMutants(QProgram qProgram, List<String> operatorNames, String inputQubits,
+            List<NoiseConfigDTO> noiseConfigs, MutantCycle cycle, String experimentId) throws Exception {
         try {
+            Map<String, Operator> opsByName = operatorRepository.findAll().stream()
+                    .filter(o -> o.getName() != null)
+                    .collect(Collectors.toMap(Operator::getName, o -> o, (a, b) -> a));
+
             Map<String, Object> quirkMap = extractQuirkCode(qProgram.getQuirkCircuit().getCode());
             Map<String, Object> body = new HashMap<>();
             body.put("circuit", quirkMap);
@@ -402,16 +394,37 @@ public class ExperimentService {
 
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, createJsonHeaders());
 
-            ResponseEntity<List> response = restTemplate.exchange(
-                    qumugenUrl + "/qumugen/generateQuirkMutants",
-                    HttpMethod.PUT,
-                    request,
-                    List.class);
-
-            return response.getBody() != null ? (List<Map<String, Object>>) response.getBody() : new ArrayList<>();
+            Integer count = restTemplate.execute(qumugenUrl + "/qumugen/generateQuirkMutants", HttpMethod.PUT,
+                    restTemplate.httpEntityCallback(request),
+                    response -> {
+                        List<Mutant> lote = new ArrayList<>(200);
+                        int[] index = { 0 };
+                        QumugenMutantReader.forEachMutant(response.getBody(), objectMapper, data -> {
+                            lote.add(buildMutant(data, index[0]++, cycle, opsByName, qProgram));
+                            if (lote.size() == 200) {
+                                mutantRepository.saveAll(lote);
+                                lote.clear();
+                            }
+                            if (index[0] % 1000 == 0) {
+                                logger.info("exp={} mutantes guardados={}", experimentId, index[0]);
+                            }
+                        });
+                        if (!lote.isEmpty()) {
+                            mutantRepository.saveAll(lote);
+                        }
+                        return index[0];
+                    });
+            return count != null ? count : 0;
         } catch (Exception e) {
             logger.error("Error calling qumugen generateQuirkMutants: {}", e.getMessage(), e);
-            throw new Exception("Error al generar mutantes en qumugen: " + e.getMessage(), e);
+            String message = "Error al generar mutantes en qumugen: " + e.getMessage();
+            Throwable root = org.springframework.core.NestedExceptionUtils.getMostSpecificCause(e);
+            if (root != e) {
+                String rootMessage = root.getMessage() != null ? root.getMessage().split("\\R", 2)[0] : "";
+                String cause = " | causa: " + root.getClass().getSimpleName() + ": " + rootMessage;
+                message += cause.length() > 300 ? cause.substring(0, 300) : cause;
+            }
+            throw new Exception(message, e);
         }
     }
 
@@ -443,7 +456,8 @@ public class ExperimentService {
             return;
         }
         String axis = nc.getAxis();
-        if (axis == null || (!axis.trim().equalsIgnoreCase("X") && !axis.trim().equalsIgnoreCase("Y") && !axis.trim().equalsIgnoreCase("Z"))) {
+        if (axis == null || (!axis.trim().equalsIgnoreCase("X") && !axis.trim().equalsIgnoreCase("Y")
+                && !axis.trim().equalsIgnoreCase("Z"))) {
             throw new Exception("Invalid noise configuration: unknown axis '" + axis + "'");
         }
         Double angle = nc.getAngle();
@@ -452,7 +466,8 @@ public class ExperimentService {
         }
     }
 
-    private void executeCycleInQiskitExec(String experimentId, Project project, MutantCycle cycle, String inputQubits, String outputQubits,
+    private void executeCycleInQiskitExec(String experimentId, Project project, MutantCycle cycle, String inputQubits,
+            String outputQubits,
             CreateExperimentDTO dto) throws Exception {
         try {
             long tOrigCodeStart = System.nanoTime();
@@ -464,20 +479,20 @@ public class ExperimentService {
                     dto.getExecAlgorithm());
             long originalExecMs = (System.nanoTime() - tOrigExecStart) / 1_000_000;
 
-            List<Mutant> mutants = cycle.getMutants();
             int chunkSize = calculateChunkSize(inputQubits, originalExecMs);
             logger.info("[PERF] exp={} circuit={} originalCodeMs={} originalExecMs={} chunkSize={}",
                     experimentId, project.getId(), originalCodeMs, originalExecMs, chunkSize);
 
-            if (mutants == null || mutants.isEmpty()) {
-                return;
-            }
-
-            for (int start = 0; start < mutants.size(); start += chunkSize) {
-                int end = Math.min(start + chunkSize, mutants.size());
-                List<Mutant> batch = mutants.subList(start, end);
-
-                executeBatchWithSplit(experimentId, project, cycle, batch, originalResults, inputQubits, outputQubits, dto);
+            int fromIndex = 0;
+            while (true) {
+                List<Mutant> batch = mutantRepository.findCircuitsPage(project.getId(), cycle.getId(), fromIndex,
+                        PageRequest.of(0, chunkSize));
+                if (batch.isEmpty()) {
+                    break;
+                }
+                executeBatchWithSplit(experimentId, project, cycle, new ArrayList<>(batch), originalResults,
+                        inputQubits, outputQubits, dto);
+                fromIndex = batch.get(batch.size() - 1).getIndex() + 1;
             }
         } catch (Exception e) {
             logger.error("Error executing cycle in qiskitexec: {}", e.getMessage(), e);
@@ -553,20 +568,24 @@ public class ExperimentService {
                     consecutiveErrors++;
                     logger.warn("[PERF] fallo sondeando job {} ({}): {}", jobId, consecutiveErrors, ex.getMessage());
                     if (consecutiveErrors >= 10) {
-                        throw HttpServerErrorException.create(HttpStatus.BAD_GATEWAY, "No se pudo consultar el job " + jobId,
+                        throw HttpServerErrorException.create(HttpStatus.BAD_GATEWAY,
+                                "No se pudo consultar el job " + jobId,
                                 new HttpHeaders(), new byte[0], StandardCharsets.UTF_8);
                     }
                     continue;
                 } catch (HttpStatusCodeException ex) {
                     int sc = ex.getStatusCode().value();
                     if (sc == 404) {
-                        throw HttpServerErrorException.create(HttpStatus.BAD_GATEWAY, "qiskitexec perdió el job " + jobId,
+                        throw HttpServerErrorException.create(HttpStatus.BAD_GATEWAY,
+                                "qiskitexec perdió el job " + jobId,
                                 new HttpHeaders(), new byte[0], StandardCharsets.UTF_8);
                     } else if (sc == 502 || sc == 503 || sc == 504) {
                         consecutiveErrors++;
-                        logger.warn("[PERF] fallo sondeando job {} ({}): {}", jobId, consecutiveErrors, ex.getMessage());
+                        logger.warn("[PERF] fallo sondeando job {} ({}): {}", jobId, consecutiveErrors,
+                                ex.getMessage());
                         if (consecutiveErrors >= 10) {
-                            throw HttpServerErrorException.create(HttpStatus.BAD_GATEWAY, "No se pudo consultar el job " + jobId,
+                            throw HttpServerErrorException.create(HttpStatus.BAD_GATEWAY,
+                                    "No se pudo consultar el job " + jobId,
                                     new HttpHeaders(), new byte[0], StandardCharsets.UTF_8);
                         }
                         continue;
@@ -580,7 +599,8 @@ public class ExperimentService {
                 String state = st != null ? (String) st.get("state") : null;
 
                 if ("finished".equals(state)) {
-                    List<?> r = pollRestTemplate.getForEntity(qiskitexecUrl + "/strategy/jobs/" + jobId + "/result", List.class).getBody();
+                    List<?> r = pollRestTemplate
+                            .getForEntity(qiskitexecUrl + "/strategy/jobs/" + jobId + "/result", List.class).getBody();
                     done = true;
                     long waitMs = System.currentTimeMillis() - start;
                     logger.info("[PERF] qiskitexec job={} kind={} waitMs={} polls={}", jobId, kind, waitMs, polls);
@@ -598,12 +618,14 @@ public class ExperimentService {
                                 err.getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8);
                     }
                 } else if ("cancelled".equals(state)) {
-                    throw HttpServerErrorException.create(HttpStatus.INTERNAL_SERVER_ERROR, "Job " + jobId + " cancelado en qiskitexec",
+                    throw HttpServerErrorException.create(HttpStatus.INTERNAL_SERVER_ERROR,
+                            "Job " + jobId + " cancelado en qiskitexec",
                             new HttpHeaders(), new byte[0], StandardCharsets.UTF_8);
                 }
 
                 if (System.currentTimeMillis() - start > readTimeoutSeconds * 1000L) {
-                    throw HttpServerErrorException.create(HttpStatus.GATEWAY_TIMEOUT, "Job " + jobId + " superó " + readTimeoutSeconds + " s",
+                    throw HttpServerErrorException.create(HttpStatus.GATEWAY_TIMEOUT,
+                            "Job " + jobId + " superó " + readTimeoutSeconds + " s",
                             new HttpHeaders(), new byte[0], StandardCharsets.UTF_8);
                 }
             }
@@ -623,15 +645,19 @@ public class ExperimentService {
     }
 
     private void executeBatchWithSplit(String experimentId, Project project, MutantCycle cycle, List<Mutant> batch,
-            List<?> originalResults, String inputQubits, String outputQubits, CreateExperimentDTO dto) throws Exception {
+            List<?> originalResults, String inputQubits, String outputQubits, CreateExperimentDTO dto)
+            throws Exception {
         try {
-            executeAndProcessMutantBatch(experimentId, project, cycle, batch, originalResults, inputQubits, outputQubits, dto);
+            executeAndProcessMutantBatch(experimentId, project, cycle, batch, originalResults, inputQubits,
+                    outputQubits, dto);
         } catch (org.springframework.web.client.HttpStatusCodeException ex) {
             if (ex.getStatusCode().value() == 504 && batch.size() > 1) {
                 logger.warn("[PERF] exp={} 504 en lote de {} mutantes; se divide en dos", experimentId, batch.size());
                 int mid = batch.size() / 2;
-                executeBatchWithSplit(experimentId, project, cycle, new ArrayList<>(batch.subList(0, mid)), originalResults, inputQubits, outputQubits, dto);
-                executeBatchWithSplit(experimentId, project, cycle, new ArrayList<>(batch.subList(mid, batch.size())), originalResults, inputQubits, outputQubits, dto);
+                executeBatchWithSplit(experimentId, project, cycle, new ArrayList<>(batch.subList(0, mid)),
+                        originalResults, inputQubits, outputQubits, dto);
+                executeBatchWithSplit(experimentId, project, cycle, new ArrayList<>(batch.subList(mid, batch.size())),
+                        originalResults, inputQubits, outputQubits, dto);
             } else {
                 throw ex;
             }
@@ -656,8 +682,10 @@ public class ExperimentService {
         return Math.min(byInputs, byCost);
     }
 
-    private void executeAndProcessMutantBatch(String experimentId, Project project, MutantCycle cycle, List<Mutant> batch,
-            List<?> originalResults, String inputQubits, String outputQubits, CreateExperimentDTO dto) throws Exception {
+    private void executeAndProcessMutantBatch(String experimentId, Project project, MutantCycle cycle,
+            List<Mutant> batch,
+            List<?> originalResults, String inputQubits, String outputQubits, CreateExperimentDTO dto)
+            throws Exception {
         List<Map<String, Object>> batchFormatted = formatMutantBatch(project, batch);
 
         Map<String, Object> multCodeBody = new HashMap<>();
@@ -690,7 +718,8 @@ public class ExperimentService {
         while (attempts < 2) {
             try {
                 attempts++;
-                stratResults = (List<List<Map<String, Object>>>) (List<?>) runQiskitexecJob("executeWithStrategy", stratBody);
+                stratResults = (List<List<Map<String, Object>>>) (List<?>) runQiskitexecJob("executeWithStrategy",
+                        stratBody);
                 break;
             } catch (ResourceAccessException ex) {
                 Throwable cause = ex;
@@ -705,7 +734,8 @@ public class ExperimentService {
                 if (!isConnectException || attempts >= 2) {
                     throw ex;
                 }
-                logger.warn("Advertencia: error de conexión al conectar con qiskitexec ({}). Reintentando...", ex.getMessage());
+                logger.warn("Advertencia: error de conexión al conectar con qiskitexec ({}). Reintentando...",
+                        ex.getMessage());
                 try {
                     Thread.sleep(2000);
                 } catch (InterruptedException ie) {
@@ -882,7 +912,6 @@ public class ExperimentService {
         dto.setCycles(cycles);
         return dto;
     }
-
 
     @org.springframework.transaction.annotation.Transactional
     public void deleteExperiment(String experimentId, String userId) throws Exception {
