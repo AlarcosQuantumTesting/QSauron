@@ -1,44 +1,88 @@
 package edu.uclm.reper.model;
 
+import java.util.List;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
+import jakarta.persistence.Table;
+
 /**
  * QProgram entity representing quantum programs
  */
+@Entity
+@Table(name = "q_programs")
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class QProgram {
-    private int id;
-    private String name;
-    private String qiskitCode;
+    @Id
+    @Column(name = "id")
+    private String id;
+
+    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JoinColumn(name = "q_program_id")
+    private List<QCode> qCodes;
+
+    @Column(name = "qubits")
     private int qubits;
-    private Expression expressions;
+
+    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JoinColumn(name = "q_program_id")
+    private List<Expression> expressions;
+
+    @Column(name = "shots")
     private int shots;
+
+    @Column(name = "input_qubits")
+    @JsonDeserialize(using = IntArrayDeserializer.class)
     private int[] inputQubits;
+
+    @Column(name = "output_qubits")
+    @JsonDeserialize(using = IntArrayDeserializer.class)
     private int[] outputQubits;
 
-    // Constructors
-    public QProgram() {}
+    @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @JoinColumn(name = "circuit_id")
+    @JsonProperty("qCircuit")
+    private QCircuit quirkCircuit;
 
-    // Getters and Setters
-    public int getId() {
+    @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JoinColumn(name = "generator_id")
+    private Generator generator;
+
+    public QProgram() {
+    }
+
+    public List<QCode> getQCodes() {
+        return qCodes;
+    }
+
+    public void setQCodes(List<QCode> qCodes) {
+        this.qCodes = qCodes;
+    }
+
+    public QCircuit getQuirkCircuit() {
+        return quirkCircuit;
+    }
+
+    public void setQuirkCircuit(QCircuit quirkCircuit) {
+        this.quirkCircuit = quirkCircuit;
+    }
+
+    public String getId() {
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(String id) {
         this.id = id;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getQiskitCode() {
-        return qiskitCode;
-    }
-
-    public void setQiskitCode(String qiskitCode) {
-        this.qiskitCode = qiskitCode;
     }
 
     public int getQubits() {
@@ -49,11 +93,11 @@ public class QProgram {
         this.qubits = qubits;
     }
 
-    public Expression getExpressions() {
+    public List<Expression> getExpressions() {
         return expressions;
     }
 
-    public void setExpressions(Expression expressions) {
+    public void setExpressions(List<Expression> expressions) {
         this.expressions = expressions;
     }
 
@@ -80,4 +124,13 @@ public class QProgram {
     public void setOutputQubits(int[] outputQubits) {
         this.outputQubits = outputQubits;
     }
+
+    public Generator getGenerator() {
+        return generator;
+    }
+
+    public void setGenerator(Generator generator) {
+        this.generator = generator;
+    }
+
 }

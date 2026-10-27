@@ -1,18 +1,69 @@
 package edu.uclm.reper.model;
 
 import java.util.Date;
+import java.util.List;
+
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.Id;
+import jakarta.persistence.IdClass;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
+import jakarta.persistence.Table;
+import jakarta.persistence.Temporal;
+import jakarta.persistence.TemporalType;
 
 /**
  * MutantCycle entity representing a cycle of mutant execution
  */
+@Entity
+@Table(name = "mutant_cycles")
+@IdClass(MutantCycleId.class)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class MutantCycle {
+    @Id
+    @Column(name = "id")
     private int id;
+
+    @Temporal(TemporalType.TIMESTAMP)
+    @Column(name = "date")
     private Date date;
-    private Mutant mutants;
-    private ExecConfig execConfigs;
+
+    @Column(name = "name")
+    private String name;
+
+    @OneToMany(mappedBy = "mutantCycle", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    @JsonManagedReference("mutantCycle-mutants")
+    private List<Mutant> mutants;
+
+    @OneToOne(mappedBy = "mutantCycle", cascade = CascadeType.ALL)
+    @JsonManagedReference("mutantCycle-execConfig")
+    @JsonProperty("execConfiguration")
+    private ExecConfig execConfig;
+
+    @Id
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "project_id")
+    @JsonBackReference("project-mutantCycles")
+    private Project project;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "experiment_id")
+    @JsonBackReference("experiment-mutantCycles")
+    private Experiment experiment;
 
     // Constructors
-    public MutantCycle() {}
+    public MutantCycle() {
+    }
 
     public MutantCycle(Date date) {
         this.date = date;
@@ -35,19 +86,44 @@ public class MutantCycle {
         this.date = date;
     }
 
-    public Mutant getMutants() {
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public List<Mutant> getMutants() {
         return mutants;
     }
 
-    public void setMutants(Mutant mutants) {
+    public void setMutants(List<Mutant> mutants) {
         this.mutants = mutants;
     }
 
-    public ExecConfig getExecConfigs() {
-        return execConfigs;
+    public ExecConfig getExecConfig() {
+        return execConfig;
     }
 
-    public void setExecConfigs(ExecConfig execConfigs) {
-        this.execConfigs = execConfigs;
+    public void setExecConfig(ExecConfig execConfig) {
+        this.execConfig = execConfig;
+    }
+
+    public Project getProject() {
+        return project;
+    }
+
+    public void setProject(Project project) {
+        this.project = project;
+    }
+
+
+    public Experiment getExperiment() {
+        return experiment;
+    }
+
+    public void setExperiment(Experiment experiment) {
+        this.experiment = experiment;
     }
 }

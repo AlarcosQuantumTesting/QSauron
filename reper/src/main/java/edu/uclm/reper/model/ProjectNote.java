@@ -1,0 +1,81 @@
+package edu.uclm.reper.model;
+
+import java.util.Date;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+
+@Entity
+@Table(name = "project_notes")
+public class ProjectNote {
+
+    @Id
+    @Column(name = "id")
+    private String id;
+
+    @Column(name = "title")
+    private String title;
+
+    @Column(name = "text")
+    private String text;
+
+    @Column(name = "type")
+    private String type;
+
+    @Column(name = "timestamp")
+    private Date timestamp;
+
+    public ProjectNote() {
+    }
+
+    public ProjectNote(String id, String title, String text, Date timestamp, String type) {
+        this.id = id;
+        this.title = title;
+        this.text = text;
+        this.timestamp = timestamp;
+        this.type = type;
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public String getText() {
+        return text;
+    }
+
+    public void setText(String text) {
+        this.text = text;
+    }
+
+    public Date getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(Date timestamp) {
+        this.timestamp = timestamp;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
+}

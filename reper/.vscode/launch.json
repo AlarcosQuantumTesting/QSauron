@@ -1,0 +1,26 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "ReperApplication",
+            "request": "launch",
+            "mainClass": "edu.uclm.reper.ReperApplication",
+            "projectName": "reper"
+        },
+        {
+            "type": "java",
+            "name": "ReperApplication",
+            "request": "launch",
+            "mainClass": "ReperApplication",
+            "projectName": "qsauron"
+        },
+        {
+            "type": "java",
+            "name": "Debug Qsauron",
+            "request": "launch",
+            "mainClass": "edu.uclm.reper.ReperApplication",
+            "projectName": "qsauron"
+        }
+    ]
+}

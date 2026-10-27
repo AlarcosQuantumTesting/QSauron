@@ -1,0 +1,1020 @@
+package edu.uclm.reper.services;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.hibernate.Hibernate;
+
+import edu.uclm.reper.model.Generator;
+import edu.uclm.reper.model.Grenoble;
+import edu.uclm.reper.model.Grover;
+import edu.uclm.reper.model.Matrix;
+import edu.uclm.reper.model.Blocks;
+import edu.uclm.reper.model.Editor;
+import edu.uclm.reper.model.Genetic;
+import edu.uclm.reper.model.Mutant;
+import edu.uclm.reper.model.MutantCycle;
+import edu.uclm.reper.model.MutantCycleId;
+import edu.uclm.reper.model.Operator;
+import edu.uclm.reper.model.Project;
+import edu.uclm.reper.model.QCircuit;
+import edu.uclm.reper.model.QProgram;
+import edu.uclm.reper.model.TestSuite;
+import edu.uclm.reper.model.TestCase;
+import edu.uclm.reper.model.MutantResult;
+import edu.uclm.reper.model.User;
+import edu.uclm.reper.repository.OperatorRepository;
+import edu.uclm.reper.repository.ProjectRepository;
+import edu.uclm.reper.repository.QCircuitRepository;
+import edu.uclm.reper.repository.QProgramRepository;
+import edu.uclm.reper.repository.UserRepository;
+import edu.uclm.reper.repository.MutantCycleRepository;
+import jakarta.transaction.Transactional;
+
+import edu.uclm.reper.dto.ProjectSummaryDTO;
+import edu.uclm.reper.dto.MutantCycleSummaryDTO;
+import edu.uclm.reper.dto.MutantSummaryDTO;
+import edu.uclm.reper.dto.OperatorSummaryDTO;
+import edu.uclm.reper.dto.ProjectLightSummaryDTO;
+
+import java.util.stream.Collectors;
+
+@Service
+@Transactional
+public class ProjectService {
+
+    @Autowired
+    private ProjectRepository projectRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private QProgramRepository qProgramRepository;
+
+    @Autowired
+    private OperatorRepository operatorRepository;
+
+    @Autowired
+    private QCircuitRepository qCircuitRepository;
+
+    @Autowired
+    private MutantCycleRepository mutantCycleRepository;
+
+    @Autowired
+    private edu.uclm.reper.repository.MutantRepository mutantRepository;
+
+    // Crea un nuevo proyecto y lo asocia con un usuario
+    public Project createProjectForUser(String projectName, String userId) {
+        Optional<User> userOpt = userRepository.findById(userId);
+        if (userOpt.isEmpty()) {
+            throw new RuntimeException("Usuario no encontrado con ID: " + userId);
+        }
+
+        User user = userOpt.get();
+
+        Project project = new Project(projectName);
+
+        if (project.getUsers() == null) {
+            project.setUsers(new ArrayList<>());
+        }
+
+        project.getUsers().add(user);
+
+        return projectRepository.save(project);
+    }
+
+    // Asocia un proyecto existente con un usuario
+    public void associateProjectWithUser(String projectId, String userId) {
+
+        Optional<Project> projectOpt = projectRepository.findById(projectId);
+        if (projectOpt.isEmpty()) {
+            throw new RuntimeException("Proyecto no encontrado con ID: " + projectId);
+        }
+
+        Optional<User> userOpt = userRepository.findById(userId);
+        if (userOpt.isEmpty()) {
+            throw new RuntimeException("Usuario no encontrado con ID: " + userId);
+        }
+
+        Project project = projectOpt.get();
+        User user = userOpt.get();
+
+        if (project.getUsers() == null) {
+            project.setUsers(new ArrayList<>());
+        }
+
+        if (!project.getUsers().contains(user)) {
+            project.getUsers().add(user);
+            projectRepository.save(project);
+        }
+
+    }
+
+    // Obtiene todos los proyectos de un usuario
+    public List<Project> getProjectsByUser(Map<String, String> request) throws Exception {
+
+        String userId = request.get("email");
+        List<Project> projects = projectRepository.findProjectsByUserId(userId);
+        for (Project project : projects) {
+            project.getMutantCycles();
+        }
+        return projects;
+    }
+
+    // Obtiene version aligerada de proyectos para el sidebar
+    public List<ProjectSummaryDTO> getSidebarProjectsByUser(String email) throws Exception {
+        List<Object[]> projectRows = projectRepository.findSidebarRows(email);
+        if (projectRows == null || projectRows.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<String> projectIds = new ArrayList<>();
+        Map<String, ProjectSummaryDTO> projectMap = new java.util.LinkedHashMap<>();
+        for (Object[] row : projectRows) {
+            String pId = (String) row[0];
+            String pName = (String) row[1];
+            projectIds.add(pId);
+            ProjectSummaryDTO pDto = new ProjectSummaryDTO(pId, pName, new ArrayList<>());
+            if (row[2] != null) {
+                pDto.setQubits(((Number) row[2]).intValue());
+            }
+            pDto.setInputQubits(formatQubitsArray(row[3]));
+            pDto.setOutputQubits(formatQubitsArray(row[4]));
+            projectMap.put(pId, pDto);
+        }
+
+        List<Object[]> cycleRows = mutantCycleRepository.findSidebarCycles(projectIds);
+        List<Object[]> mutantRows = mutantRepository.findSidebarMutants(projectIds);
+
+        Map<String, List<MutantSummaryDTO>> mutantsByCycle = new HashMap<>();
+        if (mutantRows != null) {
+            for (Object[] mRow : mutantRows) {
+                String pId = (String) mRow[0];
+                int cId = ((Number) mRow[1]).intValue();
+                int mIndex = ((Number) mRow[2]).intValue();
+                String opName = (String) mRow[3];
+                OperatorSummaryDTO opDto = opName != null ? new OperatorSummaryDTO(opName) : null;
+                String oracleName = (String) mRow[4];
+                String mutationDetail = (String) mRow[5];
+
+                String key = pId + ":" + cId;
+                mutantsByCycle.computeIfAbsent(key, k -> new ArrayList<>())
+                        .add(new MutantSummaryDTO(mIndex, opDto, oracleName, mutationDetail));
+            }
+        }
+
+        Map<String, List<MutantCycleSummaryDTO>> cyclesByProject = new HashMap<>();
+        if (cycleRows != null) {
+            for (Object[] cRow : cycleRows) {
+                String pId = (String) cRow[0];
+                int cId = ((Number) cRow[1]).intValue();
+                String cName = (String) cRow[2];
+
+                List<MutantSummaryDTO> mutants = mutantsByCycle.getOrDefault(pId + ":" + cId, new ArrayList<>());
+                cyclesByProject.computeIfAbsent(pId, k -> new ArrayList<>())
+                        .add(new MutantCycleSummaryDTO(cId, cName, mutants));
+            }
+        }
+
+        for (Map.Entry<String, ProjectSummaryDTO> entry : projectMap.entrySet()) {
+            String pId = entry.getKey();
+            ProjectSummaryDTO pDto = entry.getValue();
+            List<MutantCycleSummaryDTO> cycles = cyclesByProject.getOrDefault(pId, new ArrayList<>());
+            pDto.setMutantCycles(cycles);
+        }
+
+        return new ArrayList<>(projectMap.values());
+    }
+
+    private String formatQubitsArray(Object obj) {
+        if (obj == null) return null;
+        if (obj instanceof int[]) {
+            int[] arr = (int[]) obj;
+            if (arr.length == 0) return null;
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < arr.length; i++) {
+                if (i > 0) sb.append(",");
+                sb.append(arr[i]);
+            }
+            return sb.toString();
+        } else if (obj instanceof Integer[]) {
+            Integer[] arr = (Integer[]) obj;
+            if (arr.length == 0) return null;
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < arr.length; i++) {
+                if (i > 0) sb.append(",");
+                sb.append(arr[i]);
+            }
+            return sb.toString();
+        }
+        return null;
+    }
+
+    public List<ProjectLightSummaryDTO> getLightSidebarProjectsByUser(String email)
+            throws Exception {
+        List<ProjectLightSummaryDTO> projects = projectRepository.findLightProjectsByUserId(email);
+        return projects;
+    }
+
+    public List<Map<String, String>> getProjectsName(Map<String, String> request) throws Exception {
+
+        List<Map<String, String>> projects = new ArrayList<Map<String, String>>();
+
+        String userId = request.get("email");
+        List<Object> p = projectRepository.findProjectsNameByUserId(userId);
+
+        for (int i = 0; i < p.size(); i++) {
+
+            Map<String, String> m = new HashMap<>();
+            Object o = p.get(i);
+
+            Object[] arr = (Object[]) o;
+            String id = String.valueOf(arr[0]);
+            String name = String.valueOf(arr[1]);
+            Generator generator = (Generator) arr[2];
+            if (generator != null) {
+                generator = (Generator) Hibernate.unproxy(generator);
+            }
+            String type = "UNKNOWN";
+            if (generator != null) {
+                type = generator.getType();
+            }
+            m.put("id", id);
+            m.put("name", name);
+            m.put("type", type);
+            projects.add(m);
+        }
+
+        return projects;
+    }
+
+    public Project getProject(Map<String, String> request) throws Exception {
+
+        String userId = request.get("email");
+
+        User user = userRepository.findById(userId).get();
+
+        String projectId = request.get("projectId");
+
+        Optional<Project> projectOpt = projectRepository.findById(projectId);
+
+        if (projectOpt.isEmpty()) {
+            throw new Exception("Proyecto no encontrado con ID: " + projectId);
+        }
+
+        Project project = projectOpt.get();
+
+        if (!project.getUsers().contains(user)) {
+            throw new Exception("Usuario no asociado al proyecto: " + userId);
+        }
+
+        // Forzar inicialización de asociaciones lazy para que estén disponibles
+        // en la serialización JSON fuera de la sesión de transacción
+        if (project.getQProgram() != null) {
+            QProgram qProgram = (QProgram) Hibernate.unproxy(project.getQProgram());
+            project.setQProgram(qProgram);
+
+            // Acceder al generator lo inicializa dentro de la transacción activa
+            Generator generator = qProgram.getGenerator();
+            if (generator != null) {
+                // Desenvolver el proxy para que las comprobaciones instanceof funcionen
+                generator = (Generator) Hibernate.unproxy(generator);
+                qProgram.setGenerator(generator);
+
+                // Forzar carga de campos específicos de subclases
+                if (generator instanceof Matrix) {
+                    Matrix m = (Matrix) generator;
+                    if (m.getPositionValue() != null)
+                        m.getPositionValue().size();
+                } else if (generator instanceof Grenoble) {
+                    Grenoble g = (Grenoble) generator;
+                    if (g.getPositionValue() != null)
+                        g.getPositionValue().size();
+                } else if (generator instanceof Blocks) {
+                    Blocks b = (Blocks) generator;
+                    if (b.getGates() != null)
+                        b.getGates().size();
+                    if (b.getBlockCircuit() != null && b.getBlockCircuit().getBlocks() != null) {
+                        b.getBlockCircuit().getBlocks().size();
+                    }
+                } else if (generator instanceof Genetic) {
+                    Genetic g = (Genetic) generator;
+                    if (g.getGates() != null)
+                        g.getGates().size();
+                    if (g.getHadamards() != null)
+                        g.getHadamards().size();
+                } else if (generator instanceof Grover) {
+                    Grover g = (Grover) generator;
+                    if (g.getTruePositions() != null)
+                        g.getTruePositions().size();
+                } else if (generator instanceof Editor) {
+                    Editor e = (Editor) generator;
+                    if (e.getGates() != null)
+                        e.getGates().size();
+                }
+                generator.getId();
+            }
+
+            if (qProgram.getQuirkCircuit() != null) {
+                QCircuit quirkCircuit = (QCircuit) Hibernate.unproxy(qProgram.getQuirkCircuit());
+                qProgram.setQuirkCircuit(quirkCircuit);
+            }
+
+            // Inicializar también los QCodes y expresiones si existen
+            if (qProgram.getQCodes() != null)
+                qProgram.getQCodes().size();
+            if (qProgram.getExpressions() != null)
+                qProgram.getExpressions().size();
+        }
+
+        // Inicializar mutant cycles y sus mutantes con sus circuitos y resultados
+        if (project.getMutantCycles() != null) {
+            for (MutantCycle mc : project.getMutantCycles()) {
+                if (mc.getMutants() != null) {
+                    for (Mutant m : mc.getMutants()) {
+                        if (m.getQuirkCircuit() != null) {
+                            QProgram mq = m.getQuirkCircuit();
+                            if (mq.getQuirkCircuit() != null)
+                                mq.getQuirkCircuit().getId();
+                        }
+                        if (m.getMutantResults() != null)
+                            m.getMutantResults().size();
+                    }
+                }
+            }
+        }
+
+        // Inicializar test suites
+        if (project.getTestSuites() != null) {
+            for (TestSuite ts : project.getTestSuites()) {
+                if (ts.getTestCases() != null)
+                    ts.getTestCases().size();
+            }
+        }
+
+        return project;
+    }
+
+    public edu.uclm.reper.dto.ProjectDetailsDTO getProjectDetailsDTO(Map<String, String> request) throws Exception {
+        Project project = getProject(request);
+
+        edu.uclm.reper.dto.ProjectDetailsDTO dto = new edu.uclm.reper.dto.ProjectDetailsDTO();
+        dto.setId(project.getId());
+        dto.setName(project.getName());
+
+        // QuCoDetails
+        if (project.getQProgram() != null) {
+            edu.uclm.reper.dto.QuCoDetailsDTO quCo = new edu.uclm.reper.dto.QuCoDetailsDTO();
+            quCo.setQubits(project.getQProgram().getQubits());
+            if (project.getQProgram().getGenerator() != null) {
+                edu.uclm.reper.model.Generator generator = project.getQProgram().getGenerator();
+                quCo.setGeneratorType(generator.getType());
+            }
+            dto.setQuCoDetails(quCo);
+        }
+
+        // QuTeDetails
+        List<edu.uclm.reper.dto.QuTeDetailsDTO> testDetails = new ArrayList<>();
+        if (project.getTestSuites() != null) {
+            for (edu.uclm.reper.model.TestSuite ts : project.getTestSuites()) {
+                edu.uclm.reper.dto.QuTeDetailsDTO teDto = new edu.uclm.reper.dto.QuTeDetailsDTO();
+                int count = ts.getTestCases() != null ? ts.getTestCases().size() : 0;
+                teDto.setTestCasesCount(count);
+
+                String sType = "Unknown";
+                if (ts.getTestCases() != null && !ts.getTestCases().isEmpty()) {
+                    Object firstTc = ts.getTestCases().get(0);
+                    String className = firstTc.getClass().getSimpleName();
+                    if (className.contains("$")) {
+                        className = className.substring(0, className.indexOf("$"));
+                    }
+                    sType = className;
+                }
+                teDto.setSuiteType(sType);
+                testDetails.add(teDto);
+            }
+        }
+        dto.setQuTeDetails(testDetails);
+
+        // QuMuDetails
+        List<edu.uclm.reper.dto.QuMuDetailsDTO> muDetails = new ArrayList<>();
+        if (project.getMutantCycles() != null) {
+            for (edu.uclm.reper.model.MutantCycle mc : project.getMutantCycles()) {
+                edu.uclm.reper.dto.QuMuDetailsDTO muDto = new edu.uclm.reper.dto.QuMuDetailsDTO();
+                int count = mc.getMutants() != null ? mc.getMutants().size() : 0;
+                muDto.setMutantsCount(count);
+                muDetails.add(muDto);
+            }
+        }
+        dto.setQuMuDetails(muDetails);
+
+        // ProjectNotes
+        List<edu.uclm.reper.dto.ProjectNoteDTO> noteDetails = new ArrayList<>();
+        if (project.getNotes() != null) {
+            for (edu.uclm.reper.model.ProjectNote n : project.getNotes()) {
+                noteDetails.add(new edu.uclm.reper.dto.ProjectNoteDTO(
+                        n.getId(), n.getTitle(), n.getText(), n.getType(), n.getTimestamp()));
+            }
+        }
+        dto.setProjectNotes(noteDetails);
+
+        return dto;
+    }
+
+    public boolean deleteProject(String projectId) {
+        try {
+            projectRepository.deleteById(projectId);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public Project saveProject(Project projectData) {
+        // 1. If new project (no ID), save directly but ensure relationships
+        if (projectData.getId() == null || projectData.getId().isEmpty()) {
+            prepareNewProject(projectData);
+            return projectRepository.save(projectData);
+        }
+
+        // 2. If existing project, merge manually
+        Optional<Project> existingOpt = projectRepository.findById(projectData.getId());
+        if (existingOpt.isEmpty()) {
+            prepareNewProject(projectData);
+            return projectRepository.save(projectData);
+        }
+
+        Project existingProject = existingOpt.get();
+        updateProjectFields(existingProject, projectData);
+
+        return projectRepository.save(existingProject);
+    }
+
+    private void prepareNewProject(Project project) {
+        // Ensure main project circuit is managed
+        if (project.getQProgram() != null) {
+            prepareQProgram(project.getQProgram());
+        }
+
+        if (project.getMutantCycles() != null) {
+            for (MutantCycle mc : project.getMutantCycles()) {
+                mc.setProject(project);
+                if (mc.getMutants() != null) {
+                    saveMutantsQPrograms(mc.getMutants());
+                    for (Mutant m : mc.getMutants()) {
+                        m.setMutantCycle(mc);
+                    }
+                }
+            }
+        }
+
+        if (project.getTestSuites() != null) {
+            for (TestSuite ts : project.getTestSuites()) {
+                ts.setProject(project);
+                if (ts.getTestCases() != null) {
+                    for (TestCase tc : ts.getTestCases()) {
+                        tc.setTestSuite(ts);
+                    }
+                }
+            }
+        }
+    }
+
+    private void updateProjectFields(Project existing, Project incoming) {
+        existing.setName(incoming.getName());
+
+        // Update QProgram
+        if (incoming.getQProgram() != null) {
+            QProgram incomingProgram = incoming.getQProgram();
+            prepareQProgram(incomingProgram); // Fix QCircuit reference before attaching
+
+            QProgram existingProgram = existing.getQProgram();
+            if (existingProgram != null) {
+                existingProgram.setQubits(incomingProgram.getQubits());
+                existingProgram.setShots(incomingProgram.getShots());
+                existingProgram.setInputQubits(incomingProgram.getInputQubits());
+                existingProgram.setOutputQubits(incomingProgram.getOutputQubits());
+
+                if (incomingProgram.getQuirkCircuit() != null) {
+                    existingProgram.setQuirkCircuit(incomingProgram.getQuirkCircuit());
+                }
+
+                if (incomingProgram.getGenerator() != null) {
+                    existingProgram.setGenerator(incomingProgram.getGenerator());
+                }
+
+                if (incomingProgram.getQCodes() != null && !incomingProgram.getQCodes().isEmpty()) {
+                    existingProgram.setQCodes(incomingProgram.getQCodes());
+                }
+
+                if (incomingProgram.getExpressions() != null && !incomingProgram.getExpressions().isEmpty()) {
+                    existingProgram.setExpressions(incomingProgram.getExpressions());
+                }
+
+                QProgram savedProgram = qProgramRepository.save(existingProgram);
+                existing.setQProgram(savedProgram);
+            } else {
+                QProgram savedProgram = qProgramRepository.save(incomingProgram);
+                existing.setQProgram(savedProgram);
+            }
+        }
+
+        // Update MutantCycles
+        updateMutantCycles(existing, incoming.getMutantCycles());
+
+        // Update TestSuites
+        if (incoming.getTestSuites() != null) {
+            if (existing.getTestSuites() == null) {
+                existing.setTestSuites(new ArrayList<>());
+            }
+            existing.getTestSuites().clear();
+            for (TestSuite ts : incoming.getTestSuites()) {
+                ts.setProject(existing);
+                if (ts.getTestCases() != null) {
+                    for (TestCase tc : ts.getTestCases()) {
+                        tc.setTestSuite(ts);
+                    }
+                }
+                existing.getTestSuites().add(ts);
+            }
+        }
+
+        // Update Users
+        if (incoming.getUsers() != null) {
+            if (existing.getUsers() == null)
+                existing.setUsers(new ArrayList<>());
+            existing.setUsers(incoming.getUsers());
+        }
+
+        // Update Notes
+        if (incoming.getNotes() != null) {
+            if (existing.getNotes() == null)
+                existing.setNotes(new ArrayList<>());
+            existing.getNotes().clear();
+            existing.getNotes().addAll(incoming.getNotes());
+        }
+    }
+
+    private void updateMutantCycles(Project existingProject, List<MutantCycle> newCycles) {
+        if (newCycles == null)
+            return;
+
+        List<MutantCycle> currentCycles = existingProject.getMutantCycles();
+        if (currentCycles == null) {
+            currentCycles = new ArrayList<>();
+            existingProject.setMutantCycles(currentCycles);
+        }
+
+        Map<Integer, MutantCycle> currentMap = new HashMap<>();
+        for (MutantCycle mc : currentCycles) {
+            currentMap.put(mc.getId(), mc);
+        }
+
+        List<MutantCycle> toKeep = new ArrayList<>();
+
+        for (MutantCycle newMc : newCycles) {
+            saveMutantsQPrograms(newMc.getMutants());
+
+            if (newMc.getId() != 0 && currentMap.containsKey(newMc.getId())) {
+                MutantCycle existingMc = currentMap.get(newMc.getId());
+                existingMc.setDate(newMc.getDate());
+
+                if (newMc.getExecConfig() != null) {
+                    newMc.getExecConfig().setMutantCycle(existingMc);
+                    existingMc.setExecConfig(newMc.getExecConfig());
+                }
+
+                updateMutants(existingMc, newMc.getMutants());
+                toKeep.add(existingMc);
+            } else {
+                MutantCycle cycleToUse = newMc;
+                // If ID is not 0, try to find it in DB to avoid multiple representations
+
+                if (newMc.getId() != 0) {
+                    Optional<MutantCycle> dbCycle = mutantCycleRepository
+                            .findById(new MutantCycleId(existingProject.getId(), newMc.getId()));
+                    if (dbCycle.isPresent()) {
+                        cycleToUse = dbCycle.get();
+                        cycleToUse.setDate(newMc.getDate());
+                        if (newMc.getExecConfig() != null) {
+                            newMc.getExecConfig().setMutantCycle(cycleToUse);
+                            cycleToUse.setExecConfig(newMc.getExecConfig());
+                        }
+                        updateMutants(cycleToUse, newMc.getMutants());
+                    }
+                }
+
+                if (cycleToUse == newMc) {
+                    // Was not found in DB or ID was 0
+                    newMc.setProject(existingProject);
+                    if (newMc.getMutants() != null) {
+                        for (Mutant m : newMc.getMutants()) {
+                            m.setMutantCycle(newMc);
+                        }
+                        updateMutants(newMc, newMc.getMutants());
+                    }
+                } else {
+                    // Found in DB, ensure project link
+                    cycleToUse.setProject(existingProject);
+                }
+                toKeep.add(cycleToUse);
+            }
+        }
+
+        currentCycles.clear();
+        currentCycles.addAll(toKeep);
+    }
+
+    private void updateMutants(MutantCycle existingCycle, List<Mutant> newMutants) {
+        if (newMutants == null)
+            return;
+
+        List<Mutant> currentMutants = existingCycle.getMutants();
+        if (currentMutants == null) {
+            currentMutants = new ArrayList<>();
+            existingCycle.setMutants(currentMutants);
+        }
+
+        Map<Integer, Mutant> currentMap = new HashMap<>();
+        Map<String, Mutant> currentMapByQProgram = new HashMap<>();
+
+        for (Mutant m : currentMutants) {
+            currentMap.put(m.getId(), m);
+            if (m.getQuirkCircuit() != null && m.getQuirkCircuit().getId() != null) {
+                currentMapByQProgram.put(m.getQuirkCircuit().getId(), m);
+            }
+        }
+
+        List<Mutant> toKeep = new ArrayList<>();
+
+        for (Mutant newM : newMutants) {
+            Mutant existingM = null;
+
+            // 1. Try to find existing mutant in the current cycle by ID
+            if (newM.getId() != 0 && currentMap.containsKey(newM.getId())) {
+                existingM = currentMap.get(newM.getId());
+            }
+            if (existingM != null) {
+                existingM.setMutantCycle(existingCycle);
+                existingM.setOracleName(newM.getOracleName());
+                existingM.setMutationDetail(newM.getMutationDetail());
+
+                if (newM.getMutantResults() != null) {
+                    existingM.setMutantResults(newM.getMutantResults());
+                }
+                toKeep.add(existingM);
+            } else {
+                newM.setMutantCycle(existingCycle);
+                toKeep.add(newM);
+            }
+        }
+
+        currentMutants.clear();
+        currentMutants.addAll(toKeep);
+    }
+
+    private void saveMutantsQPrograms(List<Mutant> mutants) {
+        if (mutants == null)
+            return;
+        for (Mutant mutant : mutants) {
+            if (mutant.getQuirkCircuit() != null) {
+                QProgram program = mutant.getQuirkCircuit();
+
+                // Fix QCircuit reference
+                prepareQProgram(program);
+
+                // Save/Merge QProgram and UPDATE the mutant's reference
+                QProgram savedProgram = qProgramRepository.save(program);
+                mutant.setQuirkCircuit(savedProgram);
+            }
+            if (mutant.getOperator() != null && mutant.getOperator().getName() != null) {
+                Optional<Operator> operator = operatorRepository.findByName(mutant.getOperator().getName());
+                if (operator.isPresent()) {
+                    mutant.setOperator(operator.get());
+                }
+            }
+        }
+    }
+
+    // Helper method to ensure QCircuit is managed/saved correctly to avoid
+    // duplicates
+    private void prepareQProgram(QProgram program) {
+        if (program == null || program.getQuirkCircuit() == null)
+            return;
+
+        QCircuit circuit = program.getQuirkCircuit();
+        if (circuit.getId() != null) {
+            Optional<QCircuit> existing = qCircuitRepository.findById(circuit.getId());
+            if (existing.isPresent()) {
+                // Actualizar la entidad gestionada con los datos entrantes (edición del
+                // usuario) en vez de descartarlos quedándose con la versión antigua de
+                // la BD, que hacía que cualquier cambio del circuito nunca se guardara.
+                QCircuit managed = existing.get();
+                // No machacar el circuito guardado con un code nulo (p. ej. JSON
+                // inválido a medio editar); en ese caso se conserva el anterior.
+                if (circuit.getCode() != null) {
+                    managed.setCode(circuit.getCode());
+                }
+                managed.setQbits(circuit.getQbits());
+                managed.setMutableColumns(circuit.getMutableColumns());
+                managed.setMutableRows(circuit.getMutableRows());
+                program.setQuirkCircuit(qCircuitRepository.save(managed));
+            } else {
+                program.setQuirkCircuit(qCircuitRepository.save(circuit));
+            }
+        } else {
+            program.setQuirkCircuit(qCircuitRepository.save(circuit));
+        }
+    }
+
+    // --- BATCH SAVING METHODS FOR OPTIMIZATION ---
+
+    public void saveMutantsBatch(String projectId, int cycleId, List<Mutant> mutantsBatch) throws Exception {
+        Optional<Project> projectOpt = projectRepository.findById(projectId);
+        if (projectOpt.isEmpty()) {
+            throw new Exception("Project not found: " + projectId);
+        }
+
+        Optional<MutantCycle> cycleOpt = mutantCycleRepository.findById(new MutantCycleId(projectId, cycleId));
+        if (cycleOpt.isEmpty()) {
+            throw new Exception("MutantCycle not found: " + cycleId);
+        }
+
+        MutantCycle cycle = cycleOpt.get();
+
+        // Prepare circuits and operators for the new batch
+        saveMutantsQPrograms(mutantsBatch);
+
+        List<Mutant> currentMutants = cycle.getMutants();
+        if (currentMutants == null) {
+            currentMutants = new ArrayList<>();
+            cycle.setMutants(currentMutants);
+        }
+
+        Map<Integer, Mutant> currentMap = new HashMap<>();
+        for (Mutant m : currentMutants) {
+            currentMap.put(m.getId(), m);
+        }
+
+        for (Mutant newM : mutantsBatch) {
+            Mutant existingM = null;
+
+            if (newM.getId() != 0 && currentMap.containsKey(newM.getId())) {
+                existingM = currentMap.get(newM.getId());
+            }
+
+            if (existingM != null) {
+                // Update existing
+                existingM.setMutantCycle(cycle);
+                existingM.setOracleName(newM.getOracleName());
+                existingM.setMutationDetail(newM.getMutationDetail());
+                if (newM.getMutantResults() != null) {
+                    for (var r : newM.getMutantResults())
+                        r.setMutant(existingM);
+                    if (existingM.getMutantResults() == null)
+                        existingM.setMutantResults(new ArrayList<>());
+                    else
+                        existingM.getMutantResults().clear();
+                    existingM.getMutantResults().addAll(newM.getMutantResults());
+                }
+                // No need to add to list, it's already there
+            } else {
+                // Add new
+                newM.setMutantCycle(cycle);
+                if (newM.getMutantResults() != null) {
+                    for (var r : newM.getMutantResults())
+                        r.setMutant(newM);
+                }
+                currentMutants.add(newM);
+            }
+        }
+
+        mutantCycleRepository.save(cycle);
+    }
+
+    public void saveExecutionsBatch(String projectId, int cycleId, List<Mutant> mutantsWithResultsBatch)
+            throws Exception {
+        Optional<MutantCycle> cycleOpt = mutantCycleRepository.findById(new MutantCycleId(projectId, cycleId));
+        if (cycleOpt.isEmpty()) {
+            throw new Exception("MutantCycle not found: " + cycleId);
+        }
+
+        MutantCycle cycle = cycleOpt.get();
+        List<Mutant> currentMutants = cycle.getMutants();
+        if (currentMutants == null || currentMutants.isEmpty()) {
+            return; // Nothing to update
+        }
+
+        // Create a fast lookup map for existing mutants by mutantIndex (or ID if
+        // preferred, but frontend sends them with IDs hopefully, or index is unique per
+        // cycle)
+        Map<Integer, Mutant> currentMapByIndex = new HashMap<>();
+        Map<Integer, Mutant> currentMapById = new HashMap<>();
+
+        for (Mutant m : currentMutants) {
+            currentMapById.put(m.getId(), m);
+            currentMapByIndex.put(m.getIndex(), m);
+        }
+
+        for (Mutant batchMutant : mutantsWithResultsBatch) {
+            Mutant target = null;
+            if (batchMutant.getId() != 0 && currentMapById.containsKey(batchMutant.getId())) {
+                target = currentMapById.get(batchMutant.getId());
+            } else if (currentMapByIndex.containsKey(batchMutant.getIndex())) {
+                target = currentMapByIndex.get(batchMutant.getIndex());
+            }
+
+            if (target != null) {
+                if (batchMutant.getOracleName() != null) {
+                    target.setOracleName(batchMutant.getOracleName());
+                }
+                if (batchMutant.getMutationDetail() != null) {
+                    target.setMutationDetail(batchMutant.getMutationDetail());
+                }
+                if (batchMutant.getMutantResults() != null) {
+                    List<MutantResult> incomingResults = new ArrayList<>(batchMutant.getMutantResults());
+                    for (var result : incomingResults) {
+                        result.setMutant(target);
+                    }
+
+                    if (target.getMutantResults() == null) {
+                        target.setMutantResults(new ArrayList<>());
+                    } else {
+                        target.getMutantResults().clear();
+                    }
+                    target.getMutantResults().addAll(incomingResults);
+                }
+            }
+        }
+
+        mutantCycleRepository.save(cycle);
+    }
+
+    // Experimentos: solo carga los mutantes del lote (con sus resultados), no el ciclo entero
+    public void saveExperimentBatchResults(List<Mutant> batch) {
+        Map<Integer, Mutant> byId = new HashMap<>();
+        for (Mutant m : batch) {
+            byId.put(m.getId(), m);
+        }
+        for (Mutant target : mutantRepository.findWithResultsByIdIn(byId.keySet())) {
+            Mutant source = byId.get(target.getId());
+            if (source == null || source.getMutantResults() == null) {
+                continue;
+            }
+            List<MutantResult> incomingResults = new ArrayList<>(source.getMutantResults());
+            for (MutantResult result : incomingResults) {
+                result.setMutant(target);
+            }
+            if (target.getMutantResults() == null) {
+                target.setMutantResults(new ArrayList<>());
+            } else {
+                target.getMutantResults().clear();
+            }
+            target.getMutantResults().addAll(incomingResults);
+        }
+    }
+
+    public void deleteMutantCycle(String projectId, int cycleId) throws Exception {
+        mutantCycleRepository.deleteById(new MutantCycleId(projectId, cycleId));
+    }
+
+    public void createDemoProjectForUser(User user) {
+        try {
+            java.io.InputStream is = getClass().getClassLoader().getResourceAsStream("demo.json");
+            if (is == null) {
+                throw new RuntimeException("demo.json not found in classpath");
+            }
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            mapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            Project project = mapper.readValue(is, Project.class);
+
+            // 1. Generate new UUIDs and reset IDs to avoid collision
+            String newProjectId = java.util.UUID.randomUUID().toString();
+            project.setId(newProjectId);
+
+            // Clean users
+            project.setUsers(new java.util.ArrayList<>());
+            project.getUsers().add(user);
+
+            // Notes: reset IDs
+            if (project.getNotes() != null) {
+                for (var note : project.getNotes()) {
+                    note.setId(java.util.UUID.randomUUID().toString());
+                }
+            }
+
+            // QProgram
+            if (project.getQProgram() != null) {
+                QProgram qp = project.getQProgram();
+                qp.setId(java.util.UUID.randomUUID().toString());
+                if (qp.getQuirkCircuit() != null) {
+                    qp.getQuirkCircuit().setId(java.util.UUID.randomUUID().toString());
+                }
+                if (qp.getGenerator() != null) {
+                    qp.getGenerator().setId(0);
+                }
+                if (qp.getQCodes() != null) {
+                    for (var qc : qp.getQCodes()) {
+                        qc.setId(0);
+                    }
+                }
+                if (qp.getExpressions() != null) {
+                    for (var expr : qp.getExpressions()) {
+                        expr.setId(null);
+                    }
+                }
+            }
+
+            // TestSuites & TestCases
+            java.util.Map<String, TestCase> testCaseMap = new java.util.HashMap<>();
+
+            if (project.getTestSuites() != null) {
+                for (TestSuite ts : project.getTestSuites()) {
+                    ts.setId(java.util.UUID.randomUUID().toString());
+                    ts.setProject(project);
+                    if (ts.getTestCases() != null) {
+                        for (TestCase tc : ts.getTestCases()) {
+                            String oldTcId = tc.getId();
+                            String newTcId = java.util.UUID.randomUUID().toString();
+                            tc.setId(newTcId);
+                            tc.setTestSuite(ts);
+                            testCaseMap.put(oldTcId, tc);
+                        }
+                    }
+                }
+            }
+
+            // MutantCycles, Mutants, MutantResults
+            if (project.getMutantCycles() != null) {
+                for (MutantCycle mc : project.getMutantCycles()) {
+                    mc.setProject(project);
+                    // mc.id can remain the same because it's a composite key with project_id
+                    if (mc.getMutants() != null) {
+                        for (Mutant m : mc.getMutants()) {
+                            m.setId(0); // auto-generated
+                            m.setMutantCycle(mc);
+                            if (m.getQuirkCircuit() != null) {
+                                QProgram mqp = m.getQuirkCircuit();
+                                mqp.setId(java.util.UUID.randomUUID().toString());
+                                if (mqp.getQuirkCircuit() != null) {
+                                    mqp.getQuirkCircuit().setId(java.util.UUID.randomUUID().toString());
+                                }
+                                if (mqp.getGenerator() != null) {
+                                    mqp.getGenerator().setId(0);
+                                }
+                                if (mqp.getQCodes() != null) {
+                                    for (var qc : mqp.getQCodes()) {
+                                        qc.setId(0);
+                                    }
+                                }
+                                if (mqp.getExpressions() != null) {
+                                    for (var expr : mqp.getExpressions()) {
+                                        expr.setId(null);
+                                    }
+                                }
+                            }
+                            if (m.getMutantResults() != null) {
+                                for (MutantResult mr : m.getMutantResults()) {
+                                    mr.setMutant(m);
+                                    // Map test case reference back
+                                    if (mr.getTestCase() != null && mr.getTestCase().getId() != null) {
+                                        TestCase newTc = testCaseMap.get(mr.getTestCase().getId());
+                                        mr.setTestCase(newTc);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (mc.getExecConfig() != null) {
+                        mc.getExecConfig().setMutantCycle(mc);
+                        mc.getExecConfig().setId(java.util.UUID.randomUUID().toString());
+                        if (mc.getExecConfig().getKillingMatrix() != null) {
+                            mc.getExecConfig().getKillingMatrix().setId(0);
+                            if (mc.getExecConfig().getKillingMatrix().getMutantResults() != null) {
+                                for (MutantResult mr : mc.getExecConfig().getKillingMatrix().getMutantResults()) {
+                                    if (mr.getTestCase() != null && mr.getTestCase().getId() != null) {
+                                        TestCase newTc = testCaseMap.get(mr.getTestCase().getId());
+                                        mr.setTestCase(newTc);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Save the project!
+            saveProject(project);
+
+        } catch (Exception e) {
+            throw new RuntimeException("Error creating demo project: " + e.getMessage(), e);
+        }
+    }
+}

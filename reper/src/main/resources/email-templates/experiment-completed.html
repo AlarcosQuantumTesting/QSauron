@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Experimento Finalizado - QUMU</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+        /* Base styles */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #020617;
+            color: #e2e8f0;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        table {
+            border-collapse: collapse;
+        }
+
+        /* Glassmorphism wrapper */
+        .wrapper {
+            width: 100%;
+            background-color: #020617;
+            background-image: radial-gradient(circle at top center, rgba(16, 185, 129, 0.12) 0%, transparent 60%);
+            padding: 40px 15px;
+        }
+
+        .main-card {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #0f172a;
+            background: linear-gradient(160deg, rgba(15, 23, 42, 0.95) 0%, rgba(2, 6, 23, 0.98) 100%);
+            border: 1px solid rgba(16, 185, 129, 0.35);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(16, 185, 129, 0.15);
+        }
+
+        .header {
+            padding: 32px 40px 20px 40px;
+            text-align: center;
+            border-bottom: 1px solid rgba(16, 185, 129, 0.15);
+        }
+
+        .logo-box {
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+
+        .brand-title {
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: #ffffff;
+            margin: 0;
+        }
+
+        .brand-accent {
+            color: #10b981;
+        }
+
+        .brand-subtitle {
+            font-size: 13px;
+            color: #64748b;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+
+        .content {
+            padding: 36px 40px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.5);
+            border-radius: 20px;
+            color: #34d399;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            margin-bottom: 20px;
+        }
+
+        .exp-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #ffffff;
+            margin: 0 0 12px 0;
+            line-height: 1.3;
+        }
+
+        .exp-desc {
+            font-size: 15px;
+            color: #94a3b8;
+            line-height: 1.6;
+            margin: 0 0 28px 0;
+        }
+
+        /* Stats Grid */
+        .stats-table {
+            width: 100%;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(52, 211, 153, 0.18);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 6px;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #34d399;
+        }
+
+        .btn-container {
+            text-align: center;
+            margin-top: 10px;
+            margin-bottom: 10px;
+        }
+
+        .btn-quantum {
+            display: inline-block;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #ffffff !important;
+            text-decoration: none;
+            padding: 14px 34px;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+        }
+
+        .footer {
+            padding: 24px 40px;
+            background: rgba(2, 6, 23, 0.6);
+            border-top: 1px solid rgba(16, 185, 129, 0.12);
+            text-align: center;
+            font-size: 13px;
+            color: #64748b;
+            line-height: 1.5;
+        }
+
+        .footer a {
+            color: #10b981;
+            text-decoration: none;
+        }
+
+        @media (max-width: 620px) {
+            .main-card {
+                border-radius: 12px;
+            }
+            .content, .header, .footer {
+                padding: 24px 20px;
+            }
+            .stat-cell {
+                display: block;
+                width: 100% !important;
+                margin-bottom: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="wrapper">
+        <div class="main-card">
+            <!-- Header -->
+            <div class="header">
+                <div class="logo-box">
+                    <svg width="40" height="40" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="16" cy="16" r="14" stroke="#10B981" stroke-width="2" opacity="0.8"/>
+                        <path d="M16 6C16 6 26 12 26 16C26 20 16 26 16 26C16 26 6 20 6 16C6 12 16 6 16 6Z" stroke="#34D399" stroke-width="2"/>
+                        <circle cx="16" cy="16" r="4" fill="#10B981"/>
+                    </svg>
+                </div>
+                <h2 class="brand-title">QUMU <span class="brand-accent">Quantum</span></h2>
+                <div class="brand-subtitle">Quantum Mutation Testing Platform</div>
+            </div>
+
+            <!-- Content -->
+            <div class="content">
+                <div style="text-align: center;">
+                    <div class="status-badge">✓ Experimento Completado</div>
+                </div>
+
+                <h1 class="exp-title">{{EXPERIMENT_NAME}}</h1>
+                <p class="exp-desc">El experimento de mutación cuántica ha concluido exitosamente. Todos los circuitos y mutantes han sido procesados y analizados.</p>
+
+                <!-- Stats Grid -->
+                <table class="stats-table" cellpadding="0" cellspacing="8">
+                    <tr>
+                        <td class="stat-cell" width="50%">
+                            <div class="stat-card">
+                                <div class="stat-label">Circuitos Procesados</div>
+                                <div class="stat-value">{{COMPLETED_CIRCUITS}} / {{TOTAL_CIRCUITS}}</div>
+                            </div>
+                        </td>
+                        <td class="stat-cell" width="50%">
+                            <div class="stat-card">
+                                <div class="stat-label">Tiempo Total</div>
+                                <div class="stat-value">{{DURATION_FORMATTED}}</div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="stat-cell" width="50%">
+                            <div class="stat-card">
+                                <div class="stat-label">Estado</div>
+                                <div class="stat-value" style="color: #10b981;">{{STATUS}}</div>
+                            </div>
+                        </td>
+                        <td class="stat-cell" width="50%">
+                            <div class="stat-card">
+                                <div class="stat-label">Fecha de Finalización</div>
+                                <div class="stat-value" style="font-size: 15px; padding-top: 4px;">{{FINISHED_AT}}</div>
+                            </div>
+                        </td>
+                    </tr>
+                </table>
+
+                <!-- Action Button -->
+                <div class="btn-container">
+                    <a href="{{FRONTEND_URL}}" class="btn-quantum">Ver Resultados en QUMU →</a>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="footer">
+                &copy; 2026 <strong>QUMU / QSauron</strong>. Laboratorio Alarcos Quantum.<br/>
+                Plataforma de Ingeniería de Software Cuántico.<br/>
+                <a href="{{FRONTEND_URL}}">Acceder a la plataforma</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,16 +1,48 @@
 package edu.uclm.reper.model;
 
+import java.util.Map;
+
+import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.Column;
+import jakarta.persistence.DiscriminatorValue;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.Entity;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.MapKeyColumn;
+import jakarta.persistence.Table;
+
 /**
  * Grenoble generator for quantum circuits
  */
+@Entity
+@Table(name = "grenoble_generators")
+@DiscriminatorValue("GRENOBLE")
 public class Grenoble extends Generator {
+    @Column(name = "interesting_rows")
     private int interestingRows;
+
+    @Column(name = "physical_angle")
     private float physicalAngle;
+
+    @Column(name = "is_parallel")
+    @JsonProperty("parallel")
     private boolean parallel;
+
+    @Column(name = "splitted")
     private boolean splitted;
 
+    @ElementCollection
+    @CollectionTable(name = "grenoble_position_values", joinColumns = @JoinColumn(name = "grenoble_id"))
+    @MapKeyColumn(name = "position_key")
+    @Column(name = "position_value")
+    private Map<Integer, Double> positionValue;
+
     // Constructors
-    public Grenoble() {}
+    public Grenoble() {
+    }
 
     // Getters and Setters
     public int getInterestingRows() {
@@ -43,5 +75,17 @@ public class Grenoble extends Generator {
 
     public void setSplitted(boolean splitted) {
         this.splitted = splitted;
+    }
+
+    public Map<Integer, Double> getPositionValue() {
+        return positionValue;
+    }
+
+    public void setPositionValue(Map<Integer, Double> positionValue) {
+        this.positionValue = positionValue;
+    }
+    @Override
+    public String getType() {
+        return "GRENOBLE";
     }
 }

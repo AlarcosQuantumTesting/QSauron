@@ -1,20 +1,39 @@
 package edu.uclm.reper.model;
 
-/**
- * Operator entity representing quantum operators
- */
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+
+
+@Entity
+@Table(name = "operators")
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class Operator {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
     private Long id;
+    
+    @Column(name = "name")
     private String name;
-    private String type;
+    
+    @Column(name = "enabled")
+    private boolean enabled;
+    
+    @Column(name = "description")
     private String description;
 
     // Constructors
     public Operator() {}
 
-    public Operator(String name, String type, String description) {
+    public Operator(String name, boolean enabled, String description) {
         this.name = name;
-        this.type = type;
+        this.enabled = enabled;
         this.description = description;
     }
 
@@ -34,15 +53,6 @@ public class Operator {
     public void setName(String name) {
         this.name = name;
     }
-
-    public String getType() {
-        return type;
-    }
-
-    public void setType(String type) {
-        this.type = type;
-    }
-
     public String getDescription() {
         return description;
     }
@@ -50,4 +60,12 @@ public class Operator {
     public void setDescription(String description) {
         this.description = description;
     }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
 }

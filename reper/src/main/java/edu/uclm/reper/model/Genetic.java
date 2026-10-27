@@ -1,28 +1,48 @@
 package edu.uclm.reper.model;
 
+import jakarta.persistence.*;
 import java.util.List;
 
-/**
- * Genetic algorithm generator for quantum circuits
- */
-public class Genetic extends Generator {
-    private List<Object> hadamards;
-    private int minColumns;
-    private int maxColumns;
-    private int initPopSize;
-    private int maxPopSize;
-    private float desiredError;
-    private List<Object> gates;
 
-    // Constructors
+
+@Entity
+@Table(name = "genetic_generators")
+@DiscriminatorValue("GENETIC")
+public class Genetic extends Generator {
+
+    @ElementCollection
+    @CollectionTable(name = "genetic_hadamards", joinColumns = @JoinColumn(name = "genetic_id"))
+    @Column(name = "hadamard")
+    private List<Boolean> hadamards;
+    
+    @Column(name = "min_columns")
+    private int minColumns;
+    
+    @Column(name = "max_columns")
+    private int maxColumns;
+    
+    @Column(name = "init_pop_size")
+    private int initPopSize;
+    
+    @Column(name = "max_pop_size")
+    private int maxPopSize;
+    
+    @Column(name = "desired_error")
+    private float desiredError;
+    
+    @ElementCollection
+    @CollectionTable(name = "genetic_gates", joinColumns = @JoinColumn(name = "genetic_id"))
+    @Column(name = "gate")
+    private List<String> gates;
+
+
     public Genetic() {}
 
-    // Getters and Setters
-    public List<Object> getHadamards() {
+    public List<Boolean> getHadamards() {
         return hadamards;
     }
 
-    public void setHadamards(List<Object> hadamards) {
+    public void setHadamards(List<Boolean> hadamards) {
         this.hadamards = hadamards;
     }
 
@@ -66,11 +86,16 @@ public class Genetic extends Generator {
         this.desiredError = desiredError;
     }
 
-    public List<Object> getGates() {
+    public List<String> getGates() {
         return gates;
     }
 
-    public void setGates(List<Object> gates) {
+    public void setGates(List<String> gates) {
         this.gates = gates;
+    }
+
+    @Override
+    public String getType() {
+        return "GENETIC";
     }
 }

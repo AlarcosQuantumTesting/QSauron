@@ -1,15 +1,28 @@
 package edu.uclm.reper.model;
 
-/**
- * Expression entity representing quantum expressions
- */
+import jakarta.persistence.*;
+
+@Entity
+@Table(name = "expressions")
 public class Expression {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "name")
     private String name;
+    
+    @Column(name = "expr")
     private String expr;
+    
+    @Column(name = "description")
     private String description;
+    
+    @Column(name = "type")
     private String type;
 
-    // Constructors
+    
     public Expression() {}
 
     public Expression(String name, String expr, String description, String type) {
@@ -17,9 +30,16 @@ public class Expression {
         this.expr = expr;
         this.description = description;
         this.type = type;
+    }    
+
+    public Long getId() {
+        return id;
     }
 
-    // Getters and Setters
+    public void setId(Long id) {
+        this.id = id;
+    }
+
     public String getName() {
         return name;
     }
