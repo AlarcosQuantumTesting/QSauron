@@ -13,6 +13,10 @@ public class ResumePreviewDTO {
         private String inputQubits;
         private String outputQubits;
         private boolean needsQubits;
+        private int qubits;
+        private String suggestedInputQubits;
+        private String suggestedOutputQubits;
+        private boolean suggestedFromResults;
 
         public String getProjectId() { return projectId; }
         public void setProjectId(String projectId) { this.projectId = projectId; }
@@ -28,6 +32,14 @@ public class ResumePreviewDTO {
         public void setOutputQubits(String outputQubits) { this.outputQubits = outputQubits; }
         public boolean isNeedsQubits() { return needsQubits; }
         public void setNeedsQubits(boolean needsQubits) { this.needsQubits = needsQubits; }
+        public int getQubits() { return qubits; }
+        public void setQubits(int qubits) { this.qubits = qubits; }
+        public String getSuggestedInputQubits() { return suggestedInputQubits; }
+        public void setSuggestedInputQubits(String v) { this.suggestedInputQubits = v; }
+        public String getSuggestedOutputQubits() { return suggestedOutputQubits; }
+        public void setSuggestedOutputQubits(String v) { this.suggestedOutputQubits = v; }
+        public boolean isSuggestedFromResults() { return suggestedFromResults; }
+        public void setSuggestedFromResults(boolean v) { this.suggestedFromResults = v; }
     }
 
     public static class SkippedCycle {

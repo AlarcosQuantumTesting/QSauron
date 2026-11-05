@@ -94,6 +94,9 @@ public class ExperimentService {
     private MutantRepository mutantRepository;
 
     @Autowired
+    private edu.uclm.reper.repository.MutantResultRepository mutantResultRepository;
+
+    @Autowired
     private OperatorRepository operatorRepository;
 
     @Autowired
@@ -1117,10 +1120,68 @@ public class ExperimentService {
                 pc.setInputQubits(ec != null ? ec.getInputQubits() : null);
                 pc.setOutputQubits(ec != null ? ec.getOutputQubits() : null);
                 pc.setNeedsQubits(pc.getInputQubits() == null || pc.getOutputQubits() == null);
+                fillQubitSuggestion(pc);
                 dto.getPendingCycles().add(pc);
             }
         }
         return dto;
+    }
+
+    /** Qubits de entrada sugeridos a partir de los ids de entrada ya ejecutados (solo acierta el número). */
+    static String suggestInputQubits(List<Integer> inputIds, int qubits) {
+        if (inputIds == null || inputIds.isEmpty()) {
+            return "";
+        }
+        int max = 0;
+        for (Integer id : inputIds) {
+            if (id != null && id > max) {
+                max = id;
+            }
+        }
+        if (max <= 0) {
+            return "";
+        }
+        int k = Math.min(32 - Integer.numberOfLeadingZeros(max), Math.max(qubits, 0));
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < k; i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append(i);
+        }
+        return sb.toString();
+    }
+
+    private static String allQubits(int qubits) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < qubits; i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append(i);
+        }
+        return sb.toString();
+    }
+
+    private void fillQubitSuggestion(ResumePreviewDTO.PendingCycle pc) {
+        int qubits = 1;
+        Project project = projectRepository.findByIdWithQProgram(pc.getProjectId()).orElse(null);
+        if (project != null && project.getQProgram() != null && project.getQProgram().getQubits() > 0) {
+            qubits = project.getQProgram().getQubits();
+        }
+        pc.setQubits(qubits);
+        if (!pc.isNeedsQubits()) {
+            pc.setSuggestedInputQubits(pc.getInputQubits());
+            pc.setSuggestedOutputQubits(pc.getOutputQubits());
+            return;
+        }
+        pc.setSuggestedOutputQubits(allQubits(qubits));
+        List<Integer> ids = mutantResultRepository != null
+                ? mutantResultRepository.findDistinctInputIdsByCycle(pc.getProjectId(), pc.getCycleId())
+                : null;
+        String in = suggestInputQubits(ids, qubits);
+        pc.setSuggestedInputQubits(in);
+        pc.setSuggestedFromResults(!in.isEmpty());
     }
 
     public ResumePreviewDTO getResumePreview(String experimentId, String userId) throws Exception {

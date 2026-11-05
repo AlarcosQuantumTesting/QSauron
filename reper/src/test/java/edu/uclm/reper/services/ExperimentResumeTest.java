@@ -205,4 +205,35 @@ class ExperimentResumeTest {
                 () -> service.resumeExperiment(request(), "u@x.com"));
         assertFalse(service.getResumePreview("e1", "u@x.com").isResumable());
     }
+
+    @Test
+    void e_suggestInputQubits() {
+        assertEquals("", ExperimentService.suggestInputQubits(List.of(), 5));
+        assertEquals("", ExperimentService.suggestInputQubits(List.of(0), 5));
+        assertEquals("0,1", ExperimentService.suggestInputQubits(List.of(0, 1, 2, 3), 5));
+        assertEquals("0,1", ExperimentService.suggestInputQubits(List.of(0, 1, 2, 3, 4, 5, 6, 7), 2));
+    }
+
+    @Test
+    void f_previewOfCycleWithoutQubitsCarriesSelectorData() throws Exception {
+        experiment(null, "FAILED");
+        MutantCycle c1 = cycle("p1", 1, null, null, null, null, 10, 4);
+        when(cycleRepository.findByExperimentIdWithExecConfig("e1")).thenReturn(List.of(c1));
+        Project p = new Project();
+        p.setId("p1");
+        edu.uclm.reper.model.QProgram qp = new edu.uclm.reper.model.QProgram();
+        qp.setQubits(3);
+        p.setQProgram(qp);
+        when(projectRepository.findByIdWithQProgram("p1")).thenReturn(Optional.of(p));
+        edu.uclm.reper.repository.MutantResultRepository resRepo = mock(
+                edu.uclm.reper.repository.MutantResultRepository.class);
+        when(resRepo.findDistinctInputIdsByCycle("p1", 1)).thenReturn(List.of(0, 1, 2, 3));
+        ReflectionTestUtils.setField(service, "mutantResultRepository", resRepo);
+
+        ResumePreviewDTO.PendingCycle pc = service.getResumePreview("e1", "u@x.com").getPendingCycles().get(0);
+        assertEquals(3, pc.getQubits());
+        assertEquals("0,1,2", pc.getSuggestedOutputQubits());
+        assertEquals("0,1", pc.getSuggestedInputQubits());
+        assertTrue(pc.isSuggestedFromResults());
+    }
 }
