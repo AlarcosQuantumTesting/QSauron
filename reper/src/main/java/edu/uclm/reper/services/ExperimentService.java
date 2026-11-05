@@ -43,6 +43,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import edu.uclm.reper.dto.CircuitConfigDTO;
 import edu.uclm.reper.dto.CreateExperimentDTO;
+import edu.uclm.reper.dto.ExecParams;
 import edu.uclm.reper.dto.ExperimentProgressDTO;
 import edu.uclm.reper.dto.CycleStatsDTO;
 import edu.uclm.reper.dto.ExperimentDetailDTO;
@@ -140,6 +141,21 @@ public class ExperimentService {
     public ExperimentService() {
     }
 
+    private String serializeDefinition(CreateExperimentDTO dto) {
+        if (dto == null) return null;
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            String origEmail = dto.getEmail();
+            dto.setEmail(null);
+            String json = mapper.writeValueAsString(dto);
+            dto.setEmail(origEmail);
+            return json;
+        } catch (Exception e) {
+            logger.warn("Could not serialize experiment definition", e);
+            return null;
+        }
+    }
+
     public Experiment createExperiment(CreateExperimentDTO dto, String userId) throws Exception {
         Optional<User> userOpt = userRepository.findById(userId);
         if (userOpt.isEmpty()) {
@@ -161,6 +177,7 @@ public class ExperimentService {
         execConfig.setZombieError(dto.getZombieError());
         execConfig.setShots(dto.getShots());
         experiment.setExecConfig(execConfig);
+        experiment.setDefinitionJson(serializeDefinition(dto));
 
         experiment = experimentRepository.save(experiment);
 
@@ -195,9 +212,10 @@ public class ExperimentService {
                 return;
             }
 
-            for (CircuitConfigDTO cc : configs) {
+            for (int i = 0; i < configs.size(); i++) {
+                CircuitConfigDTO cc = configs.get(i);
                 long tCircuitStart = System.nanoTime();
-                processSingleCircuit(experimentId, cc, dto);
+                processSingleCircuit(experimentId, cc, dto, i);
                 long circuitTotalMs = (System.nanoTime() - tCircuitStart) / 1_000_000;
                 logger.info("[PERF] exp={} circuit={} totalMs={}", experimentId, cc.getProjectId(), circuitTotalMs);
 
@@ -243,6 +261,12 @@ public class ExperimentService {
     @org.springframework.transaction.annotation.Transactional
     public void processSingleCircuit(String experimentId, CircuitConfigDTO cc, CreateExperimentDTO dto)
             throws Exception {
+        processSingleCircuit(experimentId, cc, dto, 0);
+    }
+
+    @org.springframework.transaction.annotation.Transactional
+    public void processSingleCircuit(String experimentId, CircuitConfigDTO cc, CreateExperimentDTO dto, int circuitIndex)
+            throws Exception {
         Project project = projectRepository.findByIdWithQProgram(cc.getProjectId())
                 .or(() -> projectRepository.findById(cc.getProjectId()))
                 .orElseThrow(() -> new Exception("Project not found: " + cc.getProjectId()));
@@ -257,7 +281,7 @@ public class ExperimentService {
 
         // 1. Create the empty MutantCycle
         long tCycleStart = System.nanoTime();
-        MutantCycle newCycle = createEmptyMutantCycle(project, experimentId, dto);
+        MutantCycle newCycle = createEmptyMutantCycle(project, experimentId, dto, circuitIndex, inputQubits, outputQubits);
         long createCycleMs = (System.nanoTime() - tCycleStart) / 1_000_000;
 
         // 2. Generate mutants in qumugen and save them in batches
@@ -266,14 +290,19 @@ public class ExperimentService {
                 dto.effectiveNoiseConfigs(), newCycle, experimentId);
         long generateMs = (System.nanoTime() - tGenStart) / 1_000_000;
 
+        newCycle.setGenerationCompleted(true);
+        mutantCycleRepository.save(newCycle);
+
         logger.info("[PERF] exp={} circuit={} generateMs={} createCycleMs={} mutants={}",
                 experimentId, cc.getProjectId(), generateMs, createCycleMs, mutantCount);
 
         // 3. Execute original circuit & mutants in qiskitexec
-        executeCycleInQiskitExec(experimentId, project, newCycle, inputQubits, outputQubits, dto);
+        ExecParams params = ExecParams.fromDto(dto, inputQubits, outputQubits);
+        executeCycleInQiskitExec(experimentId, project, newCycle, params, false);
     }
 
-    private MutantCycle createEmptyMutantCycle(Project project, String experimentId, CreateExperimentDTO dto) {
+    private MutantCycle createEmptyMutantCycle(Project project, String experimentId, CreateExperimentDTO dto,
+            int circuitIndex, String inputQubits, String outputQubits) {
         long tCyclesStart = System.nanoTime();
         List<MutantCycle> existingCycles = mutantCycleRepository.findByProjectId(project.getId());
         int nextCycleId = 1;
@@ -290,6 +319,8 @@ public class ExperimentService {
         newCycle.setId(nextCycleId);
         newCycle.setName(dto.getName() + " - " + project.getName());
         newCycle.setProject(project);
+        newCycle.setCircuitIndex(circuitIndex);
+        newCycle.setGenerationCompleted(false);
 
         long tExpStart = System.nanoTime();
         newCycle.setExperiment(experimentRepository.getReferenceById(experimentId));
@@ -300,6 +331,8 @@ public class ExperimentService {
         cycleExecConfig.setToleratedError(dto.getToleratedError());
         cycleExecConfig.setZombieError(dto.getZombieError());
         cycleExecConfig.setShots(dto.getShots());
+        cycleExecConfig.setInputQubits(inputQubits);
+        cycleExecConfig.setOutputQubits(outputQubits);
         cycleExecConfig.setMutantCycle(newCycle);
         newCycle.setExecConfig(cycleExecConfig);
 
@@ -503,32 +536,33 @@ public class ExperimentService {
         }
     }
 
-    private void executeCycleInQiskitExec(String experimentId, Project project, MutantCycle cycle, String inputQubits,
-            String outputQubits,
-            CreateExperimentDTO dto) throws Exception {
+    public void executeCycleInQiskitExec(String experimentId, Project project, MutantCycle cycle,
+            ExecParams params, boolean onlyPending) throws Exception {
         try {
             long tOrigCodeStart = System.nanoTime();
-            String originalWholeCode = getOriginalQiskitCode(project, outputQubits, dto.getShots());
+            String originalWholeCode = getOriginalQiskitCode(project, params.outputQubits(), params.shots());
             long originalCodeMs = (System.nanoTime() - tOrigCodeStart) / 1_000_000;
 
             long tOrigExecStart = System.nanoTime();
-            List<?> originalResults = executeOriginalInQiskitExec(project, originalWholeCode, inputQubits, outputQubits,
-                    dto.getExecAlgorithm());
+            List<?> originalResults = executeOriginalInQiskitExec(project, originalWholeCode, params.inputQubits(),
+                    params.outputQubits(), params.execAlgorithm());
             long originalExecMs = (System.nanoTime() - tOrigExecStart) / 1_000_000;
 
-            int chunkSize = calculateChunkSize(inputQubits, originalExecMs);
+            int chunkSize = calculateChunkSize(params.inputQubits(), originalExecMs);
             logger.info("[PERF] exp={} circuit={} originalCodeMs={} originalExecMs={} chunkSize={}",
                     experimentId, project.getId(), originalCodeMs, originalExecMs, chunkSize);
 
             int fromIndex = 0;
             while (true) {
-                List<Mutant> batch = mutantRepository.findCircuitsPage(project.getId(), cycle.getId(), fromIndex,
-                        PageRequest.of(0, chunkSize));
+                List<Mutant> batch = onlyPending
+                        ? mutantRepository.findPendingCircuitsPage(project.getId(), cycle.getId(), fromIndex,
+                                PageRequest.of(0, chunkSize))
+                        : mutantRepository.findCircuitsPage(project.getId(), cycle.getId(), fromIndex,
+                                PageRequest.of(0, chunkSize));
                 if (batch.isEmpty()) {
                     break;
                 }
-                executeBatchWithSplit(experimentId, project, cycle, new ArrayList<>(batch), originalResults,
-                        inputQubits, outputQubits, dto);
+                executeBatchWithSplit(experimentId, project, cycle, new ArrayList<>(batch), originalResults, params);
                 fromIndex = batch.get(batch.size() - 1).getIndex() + 1;
             }
         } catch (Exception e) {
@@ -682,19 +716,18 @@ public class ExperimentService {
     }
 
     private void executeBatchWithSplit(String experimentId, Project project, MutantCycle cycle, List<Mutant> batch,
-            List<?> originalResults, String inputQubits, String outputQubits, CreateExperimentDTO dto)
+            List<?> originalResults, ExecParams params)
             throws Exception {
         try {
-            executeAndProcessMutantBatch(experimentId, project, cycle, batch, originalResults, inputQubits,
-                    outputQubits, dto);
+            executeAndProcessMutantBatch(experimentId, project, cycle, batch, originalResults, params);
         } catch (org.springframework.web.client.HttpStatusCodeException ex) {
             if (ex.getStatusCode().value() == 504 && batch.size() > 1) {
                 logger.warn("[PERF] exp={} 504 en lote de {} mutantes; se divide en dos", experimentId, batch.size());
                 int mid = batch.size() / 2;
                 executeBatchWithSplit(experimentId, project, cycle, new ArrayList<>(batch.subList(0, mid)),
-                        originalResults, inputQubits, outputQubits, dto);
+                        originalResults, params);
                 executeBatchWithSplit(experimentId, project, cycle, new ArrayList<>(batch.subList(mid, batch.size())),
-                        originalResults, inputQubits, outputQubits, dto);
+                        originalResults, params);
             } else {
                 throw ex;
             }
@@ -719,18 +752,45 @@ public class ExperimentService {
         return Math.min(byInputs, byCost);
     }
 
+    public record FormattedBatch(List<Mutant> sentMutants, List<Map<String, Object>> formattedList) {}
+
+    public FormattedBatch formatMutantBatch(Project project, List<Mutant> batch) {
+        List<Map<String, Object>> batchFormatted = new ArrayList<>();
+        List<Mutant> sentMutants = new ArrayList<>();
+        int qubits = project.getQProgram() != null ? project.getQProgram().getQubits() : 1;
+        for (Mutant m : batch) {
+            if (m.getQuirkCircuit() != null && m.getQuirkCircuit().getQuirkCircuit() != null) {
+                Map<String, Object> mQuirkMap = extractQuirkCode(m.getQuirkCircuit().getQuirkCircuit().getCode());
+                Map<String, Object> item = new HashMap<>();
+                item.put("mutantIndex", m.getIndex());
+                item.put("circuit", Map.of(
+                        "quirkCode", mQuirkMap,
+                        "qubits", qubits));
+                batchFormatted.add(item);
+                sentMutants.add(m);
+            }
+        }
+        return new FormattedBatch(sentMutants, batchFormatted);
+    }
+
     private void executeAndProcessMutantBatch(String experimentId, Project project, MutantCycle cycle,
             List<Mutant> batch,
-            List<?> originalResults, String inputQubits, String outputQubits, CreateExperimentDTO dto)
+            List<?> originalResults, ExecParams params)
             throws Exception {
-        List<Map<String, Object>> batchFormatted = formatMutantBatch(project, batch);
+        FormattedBatch formatted = formatMutantBatch(project, batch);
+        List<Mutant> sentMutants = formatted.sentMutants();
+        List<Map<String, Object>> batchFormatted = formatted.formattedList();
+
+        if (sentMutants.isEmpty()) {
+            return;
+        }
 
         Map<String, Object> multCodeBody = new HashMap<>();
         multCodeBody.put("mutants", batchFormatted);
-        multCodeBody.put("outputQubits", outputQubits);
+        multCodeBody.put("outputQubits", params.outputQubits());
 
         HttpEntity<Map<String, Object>> multCodeReq = new HttpEntity<>(multCodeBody, createJsonHeaders());
-        String multCodeUrl = qumugenUrl + "/qumugen/getMultipleQiskitCode?shots=" + dto.getShots()
+        String multCodeUrl = qumugenUrl + "/qumugen/getMultipleQiskitCode?shots=" + params.shots()
                 + "&qiskitTemplate=qiskitTemplateWindows.txt";
         long tCodeGenStart = System.nanoTime();
         ResponseEntity<List> multCodeResp = restTemplate.exchange(multCodeUrl, HttpMethod.PUT, multCodeReq, List.class);
@@ -741,11 +801,11 @@ public class ExperimentService {
         Map<String, Object> stratBody = new HashMap<>();
         stratBody.put("mutants", mutantCodes);
         stratBody.put("originalResults", originalResults);
-        stratBody.put("algorithm", dto.getExecAlgorithm());
-        stratBody.put("toleratedError", dto.getToleratedError());
-        stratBody.put("zombieError", dto.getZombieError());
-        stratBody.put("inputQubits", inputQubits);
-        stratBody.put("outputQubits", outputQubits);
+        stratBody.put("algorithm", params.execAlgorithm());
+        stratBody.put("toleratedError", params.toleratedError());
+        stratBody.put("zombieError", params.zombieError());
+        stratBody.put("inputQubits", params.inputQubits());
+        stratBody.put("outputQubits", params.outputQubits());
         stratBody.put("qubits", project.getQProgram().getQubits());
         stratBody.put("reduceTable", false);
 
@@ -785,33 +845,17 @@ public class ExperimentService {
         long saveMs = 0;
         if (stratResults != null) {
             long tSaveStart = System.nanoTime();
-            processAndSaveBatchResults(project.getId(), cycle.getId(), batch, stratResults);
+            processAndSaveBatchResults(project.getId(), cycle.getId(), sentMutants, stratResults);
             saveMs = (System.nanoTime() - tSaveStart) / 1_000_000;
         }
 
-        List<Integer> mutantIndices = batch.stream().map(Mutant::getIndex).collect(Collectors.toList());
+        List<Integer> mutantIndices = sentMutants.stream().map(Mutant::getIndex).collect(Collectors.toList());
         logger.info("[PERF] exp={} mutants={} codeGenMs={} strategyMs={} attempts={} saveMs={}",
                 experimentId, mutantIndices, codeGenMs, strategyMs, attempts, saveMs);
     }
 
-    private List<Map<String, Object>> formatMutantBatch(Project project, List<Mutant> batch) {
-        List<Map<String, Object>> batchFormatted = new ArrayList<>();
-        int qubits = project.getQProgram() != null ? project.getQProgram().getQubits() : 1;
-        for (Mutant m : batch) {
-            if (m.getQuirkCircuit() != null && m.getQuirkCircuit().getQuirkCircuit() != null) {
-                Map<String, Object> mQuirkMap = extractQuirkCode(m.getQuirkCircuit().getQuirkCircuit().getCode());
-                Map<String, Object> item = new HashMap<>();
-                item.put("mutantIndex", m.getIndex());
-                item.put("circuit", Map.of(
-                        "quirkCode", mQuirkMap,
-                        "qubits", qubits));
-                batchFormatted.add(item);
-            }
-        }
-        return batchFormatted;
-    }
 
-    private void processAndSaveBatchResults(String projectId, int cycleId, List<Mutant> batch,
+    void processAndSaveBatchResults(String projectId, int cycleId, List<Mutant> batch,
             List<List<Map<String, Object>>> stratResults) throws Exception {
         for (int mIdx = 0; mIdx < Math.min(batch.size(), stratResults.size()); mIdx++) {
             Mutant mutant = batch.get(mIdx);
@@ -834,18 +878,32 @@ public class ExperimentService {
         projectService.saveExperimentBatchResults(batch);
     }
 
+    private static final java.time.format.DateTimeFormatter ERROR_DATE_FORMAT =
+            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(java.time.ZoneId.systemDefault());
+
     private void markExperimentFinished(String experimentId, String status, String errorMessage, long startTime) {
         Optional<Experiment> expOpt = experimentRepository.findByIdWithDetails(experimentId);
         if (expOpt.isPresent()) {
             Experiment exp = expOpt.get();
             exp.setStatus(status);
             exp.setFinishedAt(new Date());
-            exp.setDurationSeconds((System.currentTimeMillis() - startTime) / 1000);
+            long prevDuration = exp.getDurationSeconds() != null ? exp.getDurationSeconds() : 0L;
+            exp.setDurationSeconds(prevDuration + (System.currentTimeMillis() - startTime) / 1000);
             if (errorMessage != null) {
                 if (errorMessage.length() > 500) {
                     errorMessage = errorMessage.substring(0, 500);
                 }
                 exp.setErrorMessage(errorMessage);
+                if ("FAILED".equals(status)) {
+                    String timestamp = ERROR_DATE_FORMAT.format(java.time.Instant.now());
+                    String line = "[" + timestamp + "] " + errorMessage;
+                    String history = exp.getErrorHistory();
+                    if (history == null || history.isBlank()) {
+                        exp.setErrorHistory(line);
+                    } else {
+                        exp.setErrorHistory(history + "\n" + line);
+                    }
+                }
             }
             experimentRepository.save(exp);
         }

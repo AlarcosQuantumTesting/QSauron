@@ -76,6 +76,12 @@ public interface MutantRepository extends JpaRepository<Mutant, Long> {
     @Query("SELECT m FROM Mutant m LEFT JOIN FETCH m.quirkCircuit q LEFT JOIN FETCH q.quirkCircuit WHERE m.mutantCycle.project.id = :projectId AND m.mutantCycle.id = :cycleId AND m.index >= :fromIndex ORDER BY m.index")
     List<Mutant> findCircuitsPage(@Param("projectId") String projectId, @Param("cycleId") int cycleId, @Param("fromIndex") int fromIndex, Pageable page);
 
+    @Query("SELECT m FROM Mutant m LEFT JOIN FETCH m.quirkCircuit q LEFT JOIN FETCH q.quirkCircuit WHERE m.mutantCycle.project.id = :projectId AND m.mutantCycle.id = :cycleId AND m.index >= :fromIndex AND NOT EXISTS (SELECT 1 FROM MutantResult r WHERE r.mutant = m) ORDER BY m.index")
+    List<Mutant> findPendingCircuitsPage(@Param("projectId") String projectId, @Param("cycleId") int cycleId, @Param("fromIndex") int fromIndex, Pageable page);
+
+    @Query("SELECT COUNT(m) FROM Mutant m WHERE m.mutantCycle.project.id = :projectId AND m.mutantCycle.id = :cycleId AND NOT EXISTS (SELECT 1 FROM MutantResult r WHERE r.mutant = m)")
+    long countPendingByCycle(@Param("projectId") String projectId, @Param("cycleId") int cycleId);
+
     @Query("SELECT DISTINCT m FROM Mutant m LEFT JOIN FETCH m.mutantResults WHERE m.id IN :ids")
     List<Mutant> findWithResultsByIdIn(@Param("ids") Collection<Integer> ids);
 
