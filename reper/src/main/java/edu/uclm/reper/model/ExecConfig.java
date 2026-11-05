@@ -44,6 +44,12 @@ public class ExecConfig {
     @Column(name = "shots")
     private Integer shots;
 
+    @Column(name = "input_qubits")
+    private String inputQubits;
+
+    @Column(name = "output_qubits")
+    private String outputQubits;
+
     @OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "killing_matrix_id")
     private KillingMatrix killingMatrix;
@@ -120,6 +126,22 @@ public class ExecConfig {
 
     public void setShots(Integer shots) {
         this.shots = shots;
+    }
+
+    public String getInputQubits() {
+        return inputQubits;
+    }
+
+    public void setInputQubits(String inputQubits) {
+        this.inputQubits = inputQubits;
+    }
+
+    public String getOutputQubits() {
+        return outputQubits;
+    }
+
+    public void setOutputQubits(String outputQubits) {
+        this.outputQubits = outputQubits;
     }
 
     public KillingMatrix getKillingMatrix() {

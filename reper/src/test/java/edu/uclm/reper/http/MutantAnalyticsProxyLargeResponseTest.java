@@ -74,6 +74,24 @@ class MutantAnalyticsProxyLargeResponseTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void calculateStatisticsFromFileSendsFile() throws IOException {
+        java.nio.file.Path tempFile = java.nio.file.Files.createTempFile("matrix_test_", ".csv");
+        java.nio.file.Files.writeString(tempFile, "Mutant ID,Operator,in0\n0,H_X,Killed\n");
+
+        try {
+            MutantAnalyticsProxy proxy = new MutantAnalyticsProxy("http://localhost:" + port);
+            Map<String, Object> result = proxy.calculateStatisticsFromFile(tempFile, 0.05).block();
+
+            assertNotNull(result);
+            Map<String, Object> perMutant = (Map<String, Object>) result.get("kill_rate_per_mutant");
+            assertEquals(30000, perMutant.size());
+        } finally {
+            java.nio.file.Files.deleteIfExists(tempFile);
+        }
+    }
+
+    @Test
     void uploadResultsAcceptsLargeResponse() {
         MutantAnalyticsProxy proxy = new MutantAnalyticsProxy("http://localhost:" + port);
 

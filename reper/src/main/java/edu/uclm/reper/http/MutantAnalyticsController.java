@@ -11,6 +11,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import edu.uclm.reper.services.BackgroundJobService;
+import edu.uclm.reper.services.CycleStatisticsService;
+import edu.uclm.reper.services.QuMuLazyLoadService;
 import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
@@ -19,6 +22,39 @@ public class MutantAnalyticsController extends BaseController {
 
     @Autowired
     private MutantAnalyticsProxy mutantAnalyticsProxy;
+
+    @Autowired
+    private BackgroundJobService backgroundJobService;
+
+    @Autowired
+    private edu.uclm.reper.services.CycleStatisticsService cycleStatisticsService;
+
+    @Autowired
+    private edu.uclm.reper.services.QuMuLazyLoadService quMuLazyLoadService;
+
+    @PostMapping("/cycleStatistics/start")
+    public ResponseEntity<?> startCycleStatistics(@RequestBody Map<String, Object> body, HttpServletRequest req) {
+        String email = body != null ? (String) body.get("email") : null;
+        String projectId = body != null ? (String) body.get("projectId") : null;
+        this.validateCookie(req, email);
+        quMuLazyLoadService.checkAccess(email, projectId);
+
+        try {
+            int cycleId = ((Number) body.get("cycleId")).intValue();
+            Double threshold = (body.containsKey("threshold") && body.get("threshold") != null)
+                    ? ((Number) body.get("threshold")).doubleValue() : null;
+            Integer inputBits = (body.containsKey("inputBits") && body.get("inputBits") != null)
+                    ? ((Number) body.get("inputBits")).intValue() : null;
+
+            String jobId = backgroundJobService.submit("statistics", email, () ->
+                    cycleStatisticsService.calculateCycleStatistics(projectId, cycleId, threshold, inputBits)
+            );
+
+            return ResponseEntity.ok(Map.of("jobId", jobId));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
 
     @PostMapping("/calculateStatistics")
     public ResponseEntity<?> calculateStatistics(
