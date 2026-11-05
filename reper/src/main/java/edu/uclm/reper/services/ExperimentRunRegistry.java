@@ -18,6 +18,11 @@ public class ExperimentRunRegistry {
         running.add(experimentId);
     }
 
+    /** Registra el experimento; devuelve false si ya estaba en ejecución. */
+    public boolean tryRegister(String experimentId) {
+        return running.add(experimentId);
+    }
+
     public void unregister(String experimentId) {
         running.remove(experimentId);
     }

@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,6 +16,8 @@ import edu.uclm.reper.dto.CycleStatsDTO;
 import edu.uclm.reper.dto.ExperimentDetailDTO;
 import edu.uclm.reper.dto.ExperimentListItemDTO;
 import edu.uclm.reper.dto.ExperimentProgressDTO;
+import edu.uclm.reper.dto.ResumeExperimentDTO;
+import edu.uclm.reper.dto.ResumePreviewDTO;
 import edu.uclm.reper.model.Experiment;
 import edu.uclm.reper.services.ExperimentService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -84,6 +87,33 @@ public class ExperimentController extends BaseController {
             return ResponseEntity.ok(Map.of("message", "Experiment deleted successfully", "id", experimentId));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/resume-preview")
+    public ResponseEntity<?> resumePreview(@RequestBody Map<String, String> body, HttpServletRequest req) {
+        try {
+            String email = body.get("email");
+            this.validateCookie(req, email);
+            ResumePreviewDTO preview = experimentService.getResumePreview(body.get("experimentId"), email);
+            return ResponseEntity.ok(preview);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", String.valueOf(e.getMessage())));
+        }
+    }
+
+    @PostMapping("/resume")
+    public ResponseEntity<?> resume(@RequestBody ResumeExperimentDTO dto, HttpServletRequest req) {
+        try {
+            this.validateCookie(req, dto.getEmail());
+            return ResponseEntity.ok(experimentService.resumeExperiment(dto, dto.getEmail()));
+        } catch (ExperimentService.ExperimentConflictException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
+        } catch (ExperimentService.MissingQubitsException e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", e.getMessage(), "missingQubits", e.getMissing()));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", String.valueOf(e.getMessage())));
         }
     }
 }

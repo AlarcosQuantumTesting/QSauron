@@ -25,13 +25,14 @@ public record ExecParams(
 
     public static ExecParams fromExecConfig(ExecConfig ec, String inputQubits, String outputQubits) {
         return new ExecParams(
-                ec != null ? ec.getMachine() : "AerSimulator",
-                ec != null ? ec.getExecAlgorithm() : "AllAgainstAll",
-                ec != null ? ec.getToleratedError() : 0.05,
-                ec != null ? ec.getZombieError() : 0.05,
+                ec != null && ec.getMachine() != null ? ec.getMachine() : "AerSimulator",
+                ec != null && ec.getExecAlgorithm() != null ? ec.getExecAlgorithm() : "AllAgainstAll",
+                ec != null && ec.getToleratedError() != null ? ec.getToleratedError() : 0.05,
+                ec != null && ec.getZombieError() != null ? ec.getZombieError() : 0.05,
                 ec != null && ec.getShots() != null ? ec.getShots() : 1024,
                 inputQubits != null ? inputQubits.trim() : (ec != null && ec.getInputQubits() != null ? ec.getInputQubits().trim() : ""),
                 outputQubits != null ? outputQubits.trim() : (ec != null && ec.getOutputQubits() != null ? ec.getOutputQubits().trim() : "")
         );
     }
 }
+

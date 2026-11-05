@@ -82,6 +82,9 @@ public interface MutantRepository extends JpaRepository<Mutant, Long> {
     @Query("SELECT COUNT(m) FROM Mutant m WHERE m.mutantCycle.project.id = :projectId AND m.mutantCycle.id = :cycleId AND NOT EXISTS (SELECT 1 FROM MutantResult r WHERE r.mutant = m)")
     long countPendingByCycle(@Param("projectId") String projectId, @Param("cycleId") int cycleId);
 
+    @Query("SELECT COUNT(m) FROM Mutant m WHERE m.mutantCycle.project.id = :projectId AND m.mutantCycle.id = :cycleId")
+    long countTotalByCycle(@Param("projectId") String projectId, @Param("cycleId") int cycleId);
+
     @Query("SELECT DISTINCT m FROM Mutant m LEFT JOIN FETCH m.mutantResults WHERE m.id IN :ids")
     List<Mutant> findWithResultsByIdIn(@Param("ids") Collection<Integer> ids);
 

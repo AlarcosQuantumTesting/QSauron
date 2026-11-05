@@ -60,6 +60,17 @@ public interface MutantCycleRepository extends JpaRepository<MutantCycle, Mutant
     @Query("SELECT mc FROM MutantCycle mc WHERE SIZE(mc.mutants) > 0")
     List<MutantCycle> findCyclesWithMutants();
 
+    @Query("SELECT mc FROM MutantCycle mc LEFT JOIN FETCH mc.execConfig WHERE mc.experiment.id = :experimentId ORDER BY mc.date ASC, mc.id ASC")
+    List<MutantCycle> findByExperimentIdWithExecConfig(@Param("experimentId") String experimentId);
+
+    @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE MutantCycle mc SET mc.experiment = :to WHERE mc.experiment = :from")
+    int moveCycles(@Param("from") edu.uclm.reper.model.Experiment from, @Param("to") edu.uclm.reper.model.Experiment to);
+
+    @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE MutantCycle mc SET mc.experiment = NULL WHERE mc.project.id = :projectId AND mc.id = :cycleId")
+    int detachFromExperiment(@Param("projectId") String projectId, @Param("cycleId") int cycleId);
+
     @Query("SELECT mc.id, p.id, p.name, mc.name FROM MutantCycle mc JOIN mc.project p WHERE mc.experiment.id = :experimentId ORDER BY mc.date ASC")
     List<Object[]> findCycleHeadersByExperimentId(@Param("experimentId") String experimentId);
 

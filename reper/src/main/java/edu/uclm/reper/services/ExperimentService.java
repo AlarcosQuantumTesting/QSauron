@@ -51,6 +51,9 @@ import edu.uclm.reper.dto.CycleStatsDTO;
 import edu.uclm.reper.dto.ExperimentDetailDTO;
 import edu.uclm.reper.dto.ExperimentListItemDTO;
 import edu.uclm.reper.dto.NoiseConfigDTO;
+import edu.uclm.reper.dto.ResumeExperimentDTO;
+import edu.uclm.reper.dto.ResumePreviewDTO;
+import edu.uclm.reper.repository.ExecConfigRepository;
 import edu.uclm.reper.model.ExecConfig;
 import edu.uclm.reper.model.Experiment;
 import edu.uclm.reper.model.Mutant;
@@ -100,6 +103,9 @@ public class ExperimentService {
 
     @Autowired
     private ExperimentRunRegistry runRegistry;
+
+    @Autowired
+    private ExecConfigRepository execConfigRepository;
 
     private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -932,6 +938,368 @@ public class ExperimentService {
                     }
                 }
             }
+            experimentRepository.save(exp);
+        }
+    }
+
+
+    // ======================================================================
+    // Reanudar experimentos
+    // ======================================================================
+
+    public static class ExperimentConflictException extends Exception {
+        public ExperimentConflictException(String message) {
+            super(message);
+        }
+    }
+
+    public static class MissingQubitsException extends Exception {
+        private final List<Map<String, Object>> missing;
+
+        public MissingQubitsException(List<Map<String, Object>> missing) {
+            super("Faltan los qubits de entrada/salida de " + missing.size() + " ciclo(s)");
+            this.missing = missing;
+        }
+
+        public List<Map<String, Object>> getMissing() {
+            return missing;
+        }
+    }
+
+    private static final String GENERATION_ERROR_PREFIX = "Error al generar mutantes";
+
+    /** Estado calculado de un ciclo de un experimento (para reanudar y fusionar). */
+    static class CycleState {
+        MutantCycle cycle;
+        String projectId;
+        long total;
+        long pending;
+        boolean generationComplete;
+        String skipReason; // null si el ciclo se puede ejecutar
+
+        boolean isPending() {
+            return skipReason == null && pending > 0;
+        }
+
+        boolean isIncomplete() {
+            return skipReason != null || pending > 0;
+        }
+
+        String key() {
+            return projectId + "|" + cycle.getId();
+        }
+    }
+
+    private Experiment loadOwned(String experimentId, String userId) throws Exception {
+        Experiment exp = experimentRepository.findByIdWithExecConfig(experimentId)
+                .orElseThrow(() -> new Exception("Experiment not found: " + experimentId));
+        if (exp.getUser() != null && !exp.getUser().getId().equals(userId)) {
+            throw new Exception("Unauthorized to access this experiment");
+        }
+        return exp;
+    }
+
+    List<CycleState> computeCycleStates(Experiment exp) {
+        List<MutantCycle> cycles = mutantCycleRepository.findByExperimentIdWithExecConfig(exp.getId());
+        List<CycleState> result = new ArrayList<>();
+        if (cycles == null) {
+            return result;
+        }
+        for (int i = 0; i < cycles.size(); i++) {
+            MutantCycle mc = cycles.get(i);
+            CycleState st = new CycleState();
+            st.cycle = mc;
+            st.projectId = mc.getProject().getId();
+            st.total = mutantRepository.countTotalByCycle(st.projectId, mc.getId());
+            st.pending = mutantRepository.countPendingByCycle(st.projectId, mc.getId());
+            Boolean gc = mc.getGenerationCompleted();
+            if (gc != null) {
+                st.generationComplete = gc;
+            } else if (st.total > 0) {
+                // Ciclo antiguo con mutantes: se considera generado
+                st.generationComplete = true;
+            } else {
+                boolean last = i == cycles.size() - 1;
+                String msg = exp.getErrorMessage();
+                st.generationComplete = !(last && msg != null && msg.startsWith(GENERATION_ERROR_PREFIX));
+            }
+            if (!st.generationComplete) {
+                st.skipReason = "generación incompleta";
+            } else if (st.total == 0) {
+                st.skipReason = "sin mutantes";
+            }
+            result.add(st);
+        }
+        return result;
+    }
+
+    private CreateExperimentDTO parseDefinition(Experiment exp) {
+        String json = exp.getDefinitionJson();
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            ObjectMapper mapper = new ObjectMapper()
+                    .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            return mapper.readValue(json, CreateExperimentDTO.class);
+        } catch (Exception e) {
+            logger.warn("exp={} no se pudo leer definitionJson: {}", exp.getId(), e.getMessage());
+            return null;
+        }
+    }
+
+    /** Índices de circuitoConfigs de la definición que aún no tienen ciclo con ese circuitIndex. */
+    List<Integer> remainingCircuitIndices(Experiment exp, List<CycleState> states) {
+        List<Integer> remaining = new ArrayList<>();
+        CreateExperimentDTO def = parseDefinition(exp);
+        if (def == null || def.getCircuitConfigs() == null) {
+            return remaining;
+        }
+        java.util.Set<Integer> done = new java.util.HashSet<>();
+        for (CycleState st : states) {
+            if (st.cycle.getCircuitIndex() != null) {
+                done.add(st.cycle.getCircuitIndex());
+            }
+        }
+        for (int i = 0; i < def.getCircuitConfigs().size(); i++) {
+            if (!done.contains(i)) {
+                remaining.add(i);
+            }
+        }
+        return remaining;
+    }
+
+    boolean isResumableStatus(Experiment exp) {
+        return "FAILED".equals(exp.getStatus())
+                || ("RUNNING".equals(exp.getStatus()) && !runRegistry.isRunning(exp.getId()));
+    }
+
+    ResumePreviewDTO buildResumePreview(Experiment exp, List<CycleState> states) {
+        ResumePreviewDTO dto = new ResumePreviewDTO();
+        dto.setResumable(isResumableStatus(exp));
+        if (!dto.isResumable()) {
+            dto.setReason("RUNNING".equals(exp.getStatus())
+                    ? "El experimento se está ejecutando"
+                    : "Solo se pueden reanudar experimentos fallidos o interrumpidos (estado actual: "
+                            + exp.getStatus() + ")");
+        }
+        dto.setHasDefinition(parseDefinition(exp) != null);
+        dto.setRemainingCircuits(remainingCircuitIndices(exp, states).size());
+        for (CycleState st : states) {
+            String name = st.cycle.getName() != null ? st.cycle.getName() : "Cycle " + st.cycle.getId();
+            if (st.skipReason != null) {
+                ResumePreviewDTO.SkippedCycle sk = new ResumePreviewDTO.SkippedCycle();
+                sk.setProjectId(st.projectId);
+                sk.setCycleId(st.cycle.getId());
+                sk.setName(name);
+                sk.setReason(st.skipReason);
+                dto.getSkippedCycles().add(sk);
+            } else if (st.pending > 0) {
+                ExecConfig ec = st.cycle.getExecConfig();
+                ResumePreviewDTO.PendingCycle pc = new ResumePreviewDTO.PendingCycle();
+                pc.setProjectId(st.projectId);
+                pc.setCycleId(st.cycle.getId());
+                pc.setName(name);
+                pc.setPendingMutants(st.pending);
+                pc.setInputQubits(ec != null ? ec.getInputQubits() : null);
+                pc.setOutputQubits(ec != null ? ec.getOutputQubits() : null);
+                pc.setNeedsQubits(pc.getInputQubits() == null || pc.getOutputQubits() == null);
+                dto.getPendingCycles().add(pc);
+            }
+        }
+        return dto;
+    }
+
+    public ResumePreviewDTO getResumePreview(String experimentId, String userId) throws Exception {
+        Experiment exp = loadOwned(experimentId, userId);
+        return buildResumePreview(exp, computeCycleStates(exp));
+    }
+
+    /** Punto de lanzamiento asíncrono (sobrescribible en tests). */
+    void startAsync(Runnable task, String experimentId) {
+        CompletableFuture.runAsync(task).exceptionally(t -> {
+            logger.error("Tarea de reanudación {} terminó con error no capturado", experimentId, t);
+            return null;
+        });
+    }
+
+    public Map<String, Object> resumeExperiment(ResumeExperimentDTO req, String userId) throws Exception {
+        Experiment exp = loadOwned(req.getExperimentId(), userId);
+        if (runRegistry.isRunning(exp.getId())) {
+            throw new ExperimentConflictException("El experimento ya está en ejecución");
+        }
+        List<CycleState> states = computeCycleStates(exp);
+        ResumePreviewDTO preview = buildResumePreview(exp, states);
+        if (!preview.isResumable()) {
+            throw new Exception(preview.getReason());
+        }
+
+        Map<String, ResumeExperimentDTO.CycleQubits> provided = new HashMap<>();
+        if (req.getCycles() != null) {
+            for (ResumeExperimentDTO.CycleQubits q : req.getCycles()) {
+                provided.put(q.getProjectId() + "|" + q.getCycleId(), q);
+            }
+        }
+
+        // Qubits resueltos por ciclo pendiente
+        List<Map<String, Object>> missing = new ArrayList<>();
+        Map<String, String[]> qubits = new HashMap<>();
+        for (CycleState st : states) {
+            if (!st.isPending()) {
+                continue;
+            }
+            ExecConfig ec = st.cycle.getExecConfig();
+            ResumeExperimentDTO.CycleQubits q = provided.get(st.key());
+            String in = q != null && q.getInputQubits() != null ? q.getInputQubits().trim()
+                    : (ec != null ? ec.getInputQubits() : null);
+            String out = q != null && q.getOutputQubits() != null ? q.getOutputQubits().trim()
+                    : (ec != null ? ec.getOutputQubits() : null);
+            if (in == null || out == null) {
+                Map<String, Object> m = new HashMap<>();
+                m.put("projectId", st.projectId);
+                m.put("cycleId", st.cycle.getId());
+                m.put("name", st.cycle.getName());
+                missing.add(m);
+            } else {
+                qubits.put(st.key(), new String[] { in, out });
+            }
+        }
+        if (!missing.isEmpty()) {
+            throw new MissingQubitsException(missing);
+        }
+
+        if (!runRegistry.tryRegister(exp.getId())) {
+            throw new ExperimentConflictException("El experimento ya está en ejecución");
+        }
+        List<ExecParams> pendingParams = new ArrayList<>();
+        List<CycleState> pendingStates = new ArrayList<>();
+        List<Integer> remaining;
+        try {
+            // Guardar los qubits en el ExecConfig del ciclo
+            for (CycleState st : states) {
+                if (!st.isPending()) {
+                    continue;
+                }
+                String[] q = qubits.get(st.key());
+                ExecConfig ec = st.cycle.getExecConfig();
+                if (ec == null) {
+                    ec = new ExecConfig(new Date(), exp.getExecConfig() != null ? exp.getExecConfig().getMachine() : "AerSimulator",
+                            exp.getExecConfig() != null ? exp.getExecConfig().getExecAlgorithm() : "AllAgainstAll");
+                    ec.setId(UUID.randomUUID().toString());
+                    ec.setMutantCycle(st.cycle);
+                    st.cycle.setExecConfig(ec);
+                }
+                if (!q[0].equals(ec.getInputQubits()) || !q[1].equals(ec.getOutputQubits())) {
+                    ec.setInputQubits(q[0]);
+                    ec.setOutputQubits(q[1]);
+                    execConfigRepository.save(ec);
+                }
+                pendingStates.add(st);
+                pendingParams.add(ExecParams.fromExecConfig(ec, q[0], q[1]));
+            }
+            remaining = remainingCircuitIndices(exp, states);
+
+            // Actualizar el experimento
+            String history = exp.getErrorHistory() != null ? exp.getErrorHistory() : "";
+            String err = exp.getErrorMessage();
+            if (err != null && !err.isBlank() && !history.contains(err)) {
+                history = appendLine(history, "[" + ERROR_DATE_FORMAT.format(java.time.Instant.now()) + "] " + err);
+            }
+            for (ResumePreviewDTO.SkippedCycle sk : preview.getSkippedCycles()) {
+                history = appendLine(history, "Ciclo " + sk.getName() + " saltado: " + sk.getReason());
+            }
+            exp.setErrorHistory(history.isBlank() ? null : history);
+            exp.setErrorMessage(null);
+            exp.setStatus("RUNNING");
+            exp.setFinishedAt(null);
+            exp.setResumeCount((exp.getResumeCount() != null ? exp.getResumeCount() : 0) + 1);
+            exp.setCompletedCircuits(states.size() - pendingStates.size());
+            experimentRepository.save(exp);
+        } catch (RuntimeException e) {
+            runRegistry.unregister(exp.getId());
+            throw e;
+        }
+
+        final String experimentId = exp.getId();
+        final CreateExperimentDTO def = parseDefinition(exp);
+        final List<Integer> remainingFinal = remaining;
+        startAsync(() -> resumeExperimentAsync(experimentId, pendingStates, pendingParams, def, remainingFinal,
+                userId), experimentId);
+
+        Map<String, Object> res = new HashMap<>();
+        res.put("message", "Experiment resumed");
+        res.put("id", experimentId);
+        res.put("pendingCycles", pendingStates.size());
+        res.put("skippedCycles", preview.getSkippedCycles().size());
+        res.put("remainingCircuits", remaining.size());
+        return res;
+    }
+
+    private static String appendLine(String history, String line) {
+        return history == null || history.isBlank() ? line : history + "\n" + line;
+    }
+
+    void resumeExperimentAsync(String experimentId, List<CycleState> pendingStates, List<ExecParams> params,
+            CreateExperimentDTO def, List<Integer> remainingIndices, String userEmail) {
+        long startTime = System.currentTimeMillis();
+        runRegistry.register(experimentId);
+        try {
+            for (int i = 0; i < pendingStates.size(); i++) {
+                CycleState st = pendingStates.get(i);
+                Project project = projectRepository.findByIdWithQProgram(st.projectId)
+                        .or(() -> projectRepository.findById(st.projectId))
+                        .orElseThrow(() -> new Exception("Project not found: " + st.projectId));
+                long t0 = System.nanoTime();
+                executeCycleInQiskitExec(experimentId, project, st.cycle, params.get(i), true);
+                logger.info("[PERF] exp={} resume cycle={}/{} totalMs={}", experimentId, st.projectId,
+                        st.cycle.getId(), (System.nanoTime() - t0) / 1_000_000);
+                incrementCompleted(experimentId);
+            }
+
+            if (def != null && def.getCircuitConfigs() != null) {
+                for (int idx : remainingIndices) {
+                    if (idx < 0 || idx >= def.getCircuitConfigs().size()) {
+                        continue;
+                    }
+                    processSingleCircuit(experimentId, def.getCircuitConfigs().get(idx), def, idx);
+                    incrementCompleted(experimentId);
+                }
+            }
+
+            markExperimentFinished(experimentId, "COMPLETED", null, startTime);
+            Optional<Experiment> expOpt = experimentRepository.findByIdWithDetails(experimentId);
+            if (expOpt.isPresent()) {
+                notificationService.sendExperimentCompletedEmail(expOpt.get(), userEmail);
+            }
+        } catch (Exception e) {
+            logger.error("Error resuming experiment {}: {}", experimentId, e.getMessage(), e);
+            markExperimentFinished(experimentId, "FAILED", e.getMessage(), startTime);
+            Optional<Experiment> expOpt = experimentRepository.findByIdWithDetails(experimentId);
+            if (expOpt.isPresent()) {
+                notificationService.sendExperimentFailedEmail(expOpt.get(), userEmail, e.getMessage());
+            }
+        } catch (Throwable t) {
+            logger.error("Error grave reanudando experimento {}: {}", experimentId, t.toString(), t);
+            try {
+                String message = t instanceof OutOfMemoryError ? "reper se quedó sin memoria (OutOfMemoryError)"
+                        : "Error interno: " + t;
+                markExperimentFinished(experimentId, "FAILED", message, startTime);
+                Optional<Experiment> expOpt = experimentRepository.findByIdWithDetails(experimentId);
+                if (expOpt.isPresent()) {
+                    notificationService.sendExperimentFailedEmail(expOpt.get(), userEmail, message);
+                }
+            } catch (Throwable ignored) {
+            }
+        } finally {
+            runRegistry.unregister(experimentId);
+        }
+    }
+
+    private void incrementCompleted(String experimentId) {
+        Optional<Experiment> expOpt = experimentRepository.findById(experimentId);
+        if (expOpt.isPresent()) {
+            Experiment exp = expOpt.get();
+            exp.setCompletedCircuits((exp.getCompletedCircuits() != null ? exp.getCompletedCircuits() : 0) + 1);
             experimentRepository.save(exp);
         }
     }
