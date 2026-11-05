@@ -26,5 +26,7 @@ public interface ExperimentRepository extends JpaRepository<Experiment, String> 
 
     @Query("SELECT e FROM Experiment e LEFT JOIN FETCH e.mutantCycles mc LEFT JOIN FETCH e.execConfig WHERE e.id = :id")
     Optional<Experiment> findByIdWithDetails(@Param("id") String id);
+
+    List<Experiment> findByStatus(String status);
 }
 

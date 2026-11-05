@@ -20,6 +20,8 @@ import java.nio.charset.StandardCharsets;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -95,6 +97,9 @@ public class ExperimentService {
 
     @Autowired
     private ExperimentNotificationService notificationService;
+
+    @Autowired
+    private ExperimentRunRegistry runRegistry;
 
     private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -196,6 +201,7 @@ public class ExperimentService {
 
     private void runExperimentAsync(String experimentId, CreateExperimentDTO dto, String userEmail) {
         long startTime = System.currentTimeMillis();
+        runRegistry.register(experimentId);
         List<NoiseConfigDTO> effNoise = dto.effectiveNoiseConfigs();
         if (effNoise != null && !effNoise.isEmpty()) {
             StringBuilder sb = new StringBuilder();
@@ -255,6 +261,27 @@ public class ExperimentService {
                 }
             } catch (Throwable ignored) {
             }
+        } finally {
+            runRegistry.unregister(experimentId);
+        }
+    }
+
+    /**
+     * Al arrancar la aplicación, marca como FAILED cualquier experimento que quedó
+     * en estado RUNNING (porque reper se reinició durante su ejecución).
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    public void markInterruptedExperimentsOnStartup() {
+        List<Experiment> running = experimentRepository.findByStatus("RUNNING");
+        if (running.isEmpty()) {
+            return;
+        }
+        logger.warn("Encontrados {} experimentos en estado RUNNING al arrancar — marcando como FAILED", running.size());
+        long now = System.currentTimeMillis();
+        for (Experiment exp : running) {
+            String msg = "Interrumpido: reper se reinició durante la ejecución";
+            markExperimentFinished(exp.getId(), "FAILED", msg, now);
+            logger.warn("exp={} marcado FAILED por reinicio de reper", exp.getId());
         }
     }
 
