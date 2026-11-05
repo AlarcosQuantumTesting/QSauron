@@ -51,6 +51,7 @@ import edu.uclm.reper.dto.CycleStatsDTO;
 import edu.uclm.reper.dto.ExperimentDetailDTO;
 import edu.uclm.reper.dto.ExperimentListItemDTO;
 import edu.uclm.reper.dto.NoiseConfigDTO;
+import edu.uclm.reper.dto.MergePreviewDTO;
 import edu.uclm.reper.dto.ResumeExperimentDTO;
 import edu.uclm.reper.dto.ResumePreviewDTO;
 import edu.uclm.reper.repository.ExecConfigRepository;
@@ -106,6 +107,18 @@ public class ExperimentService {
 
     @Autowired
     private ExecConfigRepository execConfigRepository;
+
+    @Autowired
+    private org.springframework.transaction.support.TransactionTemplate transactionTemplate;
+
+    @Autowired
+    private BulkDeleteService bulkDeleteService;
+
+    @Autowired
+    private BackgroundJobService backgroundJobService;
+
+    @Autowired
+    private DeletionRegistry deletionRegistry;
 
     private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -1302,6 +1315,192 @@ public class ExperimentService {
             exp.setCompletedCircuits((exp.getCompletedCircuits() != null ? exp.getCompletedCircuits() : 0) + 1);
             experimentRepository.save(exp);
         }
+    }
+
+
+    // ======================================================================
+    // Fusionar experimentos
+    // ======================================================================
+
+    static class MergePlan {
+        Experiment survivor;
+        Experiment deleted;
+        List<CycleState> survivorStates;
+        List<CycleState> deletedStates;
+        List<CycleState> duplicates = new ArrayList<>();
+        List<CycleState> survivorKept = new ArrayList<>();
+        List<Integer> deletedRemaining;
+        String resultingStatus;
+    }
+
+    MergePlan planMerge(List<String> ids, String userId) throws Exception {
+        if (ids == null || ids.size() != 2 || ids.get(0) == null || ids.get(0).equals(ids.get(1))) {
+            throw new Exception("Se necesitan dos experimentos distintos para fusionar");
+        }
+        Experiment e1 = loadOwned(ids.get(0), userId);
+        Experiment e2 = loadOwned(ids.get(1), userId);
+        for (Experiment e : List.of(e1, e2)) {
+            if ("RUNNING".equals(e.getStatus()) || runRegistry.isRunning(e.getId())) {
+                throw new Exception("No se pueden fusionar experimentos en ejecución: " + e.getName());
+            }
+        }
+        boolean firstIsOlder = e1.getCreatedAt() == null || e2.getCreatedAt() == null
+                ? e1.getId().compareTo(e2.getId()) <= 0
+                : !e1.getCreatedAt().after(e2.getCreatedAt());
+        MergePlan plan = new MergePlan();
+        plan.survivor = firstIsOlder ? e1 : e2;
+        plan.deleted = firstIsOlder ? e2 : e1;
+        plan.survivorStates = computeCycleStates(plan.survivor);
+        plan.deletedStates = computeCycleStates(plan.deleted);
+
+        java.util.Set<String> deletedProjects = new java.util.HashSet<>();
+        for (CycleState st : plan.deletedStates) {
+            deletedProjects.add(st.projectId);
+        }
+        for (CycleState st : plan.survivorStates) {
+            if (st.isIncomplete() && deletedProjects.contains(st.projectId)) {
+                plan.duplicates.add(st);
+            } else {
+                plan.survivorKept.add(st);
+            }
+        }
+        plan.deletedRemaining = remainingCircuitIndices(plan.deleted, plan.deletedStates);
+
+        boolean anyIncomplete = false;
+        for (CycleState st : plan.survivorKept) {
+            anyIncomplete |= st.isIncomplete();
+        }
+        for (CycleState st : plan.deletedStates) {
+            anyIncomplete |= st.isIncomplete();
+        }
+        plan.resultingStatus = "COMPLETED".equals(plan.deleted.getStatus()) && !anyIncomplete
+                && plan.deletedRemaining.isEmpty() ? "COMPLETED" : "FAILED";
+        return plan;
+    }
+
+    public MergePreviewDTO getMergePreview(List<String> ids, String userId) throws Exception {
+        MergePlan plan = planMerge(ids, userId);
+        MergePreviewDTO dto = new MergePreviewDTO();
+        dto.setSurvivorId(plan.survivor.getId());
+        dto.setSurvivorName(plan.survivor.getName());
+        dto.setDeletedId(plan.deleted.getId());
+        dto.setDeletedName(plan.deleted.getName());
+        dto.setCyclesToMove(plan.deletedStates.size());
+        for (CycleState st : plan.duplicates) {
+            dto.getDuplicateCyclesToDelete()
+                    .add(new MergePreviewDTO.DuplicateCycle(st.projectId, st.cycle.getId(), st.cycle.getName()));
+        }
+        dto.setResultingStatus(plan.resultingStatus);
+        return dto;
+    }
+
+    public Map<String, Object> mergeExperiments(List<String> ids, String userId) throws Exception {
+        MergePlan plan = planMerge(ids, userId);
+        String aId = plan.survivor.getId();
+        String bId = plan.deleted.getId();
+        if (!runRegistry.tryRegister(aId)) {
+            throw new ExperimentConflictException("El experimento " + plan.survivor.getName() + " está en ejecución");
+        }
+        if (!runRegistry.tryRegister(bId)) {
+            runRegistry.unregister(aId);
+            throw new ExperimentConflictException("El experimento " + plan.deleted.getName() + " está en ejecución");
+        }
+        try {
+            transactionTemplate.execute(status -> {
+                for (CycleState st : plan.duplicates) {
+                    mutantCycleRepository.detachFromExperiment(st.projectId, st.cycle.getId());
+                }
+                mutantCycleRepository.moveCycles(plan.deleted, plan.survivor);
+
+                Experiment a = experimentRepository.findByIdWithExecConfig(aId).orElseThrow();
+                Experiment b = experimentRepository.findById(bId).orElseThrow();
+
+                String history = a.getErrorHistory() != null ? a.getErrorHistory() : "";
+                history = addErrorToHistory(history, a.getErrorMessage());
+                if (b.getErrorHistory() != null && !b.getErrorHistory().isBlank()) {
+                    history = appendLine(history, b.getErrorHistory());
+                }
+                history = addErrorToHistory(history, b.getErrorMessage());
+                a.setErrorHistory(history.isBlank() ? null : history);
+
+                String bDate = b.getCreatedAt() != null
+                        ? new java.text.SimpleDateFormat("yyyy-MM-dd").format(b.getCreatedAt())
+                        : "?";
+                String mergedEntry = b.getName() + " (" + b.getId() + ", " + bDate + ")";
+                a.setMergedFrom(a.getMergedFrom() == null || a.getMergedFrom().isBlank() ? mergedEntry
+                        : a.getMergedFrom() + "; " + mergedEntry);
+                if (b.getDefinitionJson() != null) {
+                    a.setDefinitionJson(b.getDefinitionJson());
+                }
+                a.setDurationSeconds((a.getDurationSeconds() != null ? a.getDurationSeconds() : 0L)
+                        + (b.getDurationSeconds() != null ? b.getDurationSeconds() : 0L));
+                if (b.getFinishedAt() != null) {
+                    a.setFinishedAt(b.getFinishedAt());
+                }
+                int totalCycles = plan.survivorKept.size() + plan.deletedStates.size();
+                a.setTotalCircuits(totalCycles + plan.deletedRemaining.size());
+                int completed = 0;
+                for (CycleState st : plan.survivorKept) {
+                    completed += st.isIncomplete() ? 0 : 1;
+                }
+                for (CycleState st : plan.deletedStates) {
+                    completed += st.isIncomplete() ? 0 : 1;
+                }
+                a.setCompletedCircuits(completed);
+                a.setStatus(plan.resultingStatus);
+                if ("COMPLETED".equals(plan.resultingStatus)) {
+                    a.setErrorMessage(null);
+                } else {
+                    a.setErrorMessage(b.getErrorMessage() != null ? b.getErrorMessage()
+                            : "Fusionado con ciclos incompletos");
+                }
+                experimentRepository.save(a);
+                experimentRepository.delete(b);
+                return null;
+            });
+        } finally {
+            runRegistry.unregister(aId);
+            runRegistry.unregister(bId);
+        }
+
+        List<String> jobIds = new ArrayList<>();
+        for (CycleState st : plan.duplicates) {
+            final String projectId = st.projectId;
+            final int cycleId = st.cycle.getId();
+            if (!deletionRegistry.registerCycle(projectId, cycleId)) {
+                continue;
+            }
+            try {
+                jobIds.add(backgroundJobService.submit("delete", userId, () -> {
+                    try {
+                        bulkDeleteService.deleteCycle(projectId, cycleId);
+                        return Map.of("projectId", projectId, "cycleId", cycleId);
+                    } finally {
+                        deletionRegistry.unregisterCycle(projectId, cycleId);
+                    }
+                }));
+            } catch (RuntimeException e) {
+                deletionRegistry.unregisterCycle(projectId, cycleId);
+                throw e;
+            }
+        }
+        Map<String, Object> res = new HashMap<>();
+        res.put("message", "Experiments merged");
+        res.put("id", aId);
+        res.put("deletedId", bId);
+        res.put("status", plan.resultingStatus);
+        res.put("deletionJobIds", jobIds);
+        if (!jobIds.isEmpty()) {
+            res.put("deletionJobId", jobIds.get(0));
+        }
+        return res;
+    }
+
+    private String addErrorToHistory(String history, String error) {
+        if (error == null || error.isBlank() || history.contains(error)) {
+            return history;
+        }
+        return appendLine(history, "[" + ERROR_DATE_FORMAT.format(java.time.Instant.now()) + "] " + error);
     }
 
     public List<ExperimentProgressDTO> getActiveProgress(String userId) {

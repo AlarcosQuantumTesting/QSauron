@@ -16,6 +16,8 @@ import edu.uclm.reper.dto.CycleStatsDTO;
 import edu.uclm.reper.dto.ExperimentDetailDTO;
 import edu.uclm.reper.dto.ExperimentListItemDTO;
 import edu.uclm.reper.dto.ExperimentProgressDTO;
+import edu.uclm.reper.dto.MergeExperimentsDTO;
+import edu.uclm.reper.dto.MergePreviewDTO;
 import edu.uclm.reper.dto.ResumeExperimentDTO;
 import edu.uclm.reper.dto.ResumePreviewDTO;
 import edu.uclm.reper.model.Experiment;
@@ -112,6 +114,29 @@ public class ExperimentController extends BaseController {
         } catch (ExperimentService.MissingQubitsException e) {
             return ResponseEntity.badRequest()
                     .body(Map.of("error", e.getMessage(), "missingQubits", e.getMissing()));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", String.valueOf(e.getMessage())));
+        }
+    }
+
+    @PostMapping("/merge-preview")
+    public ResponseEntity<?> mergePreview(@RequestBody MergeExperimentsDTO dto, HttpServletRequest req) {
+        try {
+            this.validateCookie(req, dto.getEmail());
+            MergePreviewDTO preview = experimentService.getMergePreview(dto.getExperimentIds(), dto.getEmail());
+            return ResponseEntity.ok(preview);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", String.valueOf(e.getMessage())));
+        }
+    }
+
+    @PostMapping("/merge")
+    public ResponseEntity<?> merge(@RequestBody MergeExperimentsDTO dto, HttpServletRequest req) {
+        try {
+            this.validateCookie(req, dto.getEmail());
+            return ResponseEntity.ok(experimentService.mergeExperiments(dto.getExperimentIds(), dto.getEmail()));
+        } catch (ExperimentService.ExperimentConflictException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", String.valueOf(e.getMessage())));
         }
