@@ -11,8 +11,10 @@ public class ExperimentListItemDTO {
     private Long durationSeconds;
     private Integer totalCircuits;
     private Integer completedCircuits;
+    private boolean hadFailures;
+    private boolean resumable;
 
-    public ExperimentListItemDTO(String id, String name, String status, Date createdAt, Date finishedAt, Long durationSeconds, Integer totalCircuits, Integer completedCircuits) {
+    public ExperimentListItemDTO(String id, String name, String status, Date createdAt, Date finishedAt, Long durationSeconds, Integer totalCircuits, Integer completedCircuits, Boolean hadFailures) {
         this.id = id;
         this.name = name;
         this.status = status;
@@ -21,6 +23,7 @@ public class ExperimentListItemDTO {
         this.durationSeconds = durationSeconds;
         this.totalCircuits = totalCircuits;
         this.completedCircuits = completedCircuits;
+        this.hadFailures = Boolean.TRUE.equals(hadFailures);
     }
 
     public String getId() { return id; }
@@ -31,4 +34,7 @@ public class ExperimentListItemDTO {
     public Long getDurationSeconds() { return durationSeconds; }
     public Integer getTotalCircuits() { return totalCircuits; }
     public Integer getCompletedCircuits() { return completedCircuits; }
+    public boolean isHadFailures() { return hadFailures; }
+    public boolean isResumable() { return resumable; }
+    public void setResumable(boolean resumable) { this.resumable = resumable; }
 }

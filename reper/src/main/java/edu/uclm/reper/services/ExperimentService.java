@@ -1516,7 +1516,12 @@ public class ExperimentService {
 
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public List<ExperimentListItemDTO> getUserExperiments(String userId) {
-        return experimentRepository.findListItemsByUserId(userId);
+        List<ExperimentListItemDTO> items = experimentRepository.findListItemsByUserId(userId);
+        for (ExperimentListItemDTO it : items) {
+            it.setResumable("FAILED".equals(it.getStatus())
+                    || ("RUNNING".equals(it.getStatus()) && !runRegistry.isRunning(it.getId())));
+        }
+        return items;
     }
 
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
@@ -1537,6 +1542,10 @@ public class ExperimentService {
         dto.setTotalCircuits(e.getTotalCircuits());
         dto.setCompletedCircuits(e.getCompletedCircuits());
         dto.setErrorMessage(e.getErrorMessage());
+        dto.setErrorHistory(e.getErrorHistory());
+        dto.setResumeCount(e.getResumeCount());
+        dto.setMergedFrom(e.getMergedFrom());
+        dto.setResumable(isResumableStatus(e));
         if (e.getExecConfig() != null) {
             dto.setMachine(e.getExecConfig().getMachine());
             dto.setExecAlgorithm(e.getExecConfig().getExecAlgorithm());
@@ -1567,6 +1576,11 @@ public class ExperimentService {
                 cDto.setProjectId(projectId);
                 cDto.setProjectName(projectName);
                 cDto.setName(name);
+                if (h.length >= 7) {
+                    cDto.setGenerationCompleted((Boolean) h[4]);
+                    cDto.setInputQubits((String) h[5]);
+                    cDto.setOutputQubits((String) h[6]);
+                }
 
                 Object[] c = countsMap.get(id + "|" + projectId);
                 long totalMutants = 0;

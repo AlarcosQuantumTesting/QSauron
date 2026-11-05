@@ -71,7 +71,7 @@ public interface MutantCycleRepository extends JpaRepository<MutantCycle, Mutant
     @Query("UPDATE MutantCycle mc SET mc.experiment = NULL WHERE mc.project.id = :projectId AND mc.id = :cycleId")
     int detachFromExperiment(@Param("projectId") String projectId, @Param("cycleId") int cycleId);
 
-    @Query("SELECT mc.id, p.id, p.name, mc.name FROM MutantCycle mc JOIN mc.project p WHERE mc.experiment.id = :experimentId ORDER BY mc.date ASC")
+    @Query("SELECT mc.id, p.id, p.name, mc.name, mc.generationCompleted, ec.inputQubits, ec.outputQubits FROM MutantCycle mc JOIN mc.project p LEFT JOIN mc.execConfig ec WHERE mc.experiment.id = :experimentId ORDER BY mc.date ASC")
     List<Object[]> findCycleHeadersByExperimentId(@Param("experimentId") String experimentId);
 
     /** Por ciclo: [cycleId, projectId, total, killed, zombie, alive]. Misma regla que Mutant.isKilled/isZombie: KILLED gana a ZOMBIE; sin resultados = no ejecutado. */
