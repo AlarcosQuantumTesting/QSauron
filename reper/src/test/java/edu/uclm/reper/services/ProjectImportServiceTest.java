@@ -41,7 +41,8 @@ class ProjectImportServiceTest {
 
     @BeforeEach
     void setUp() {
-        ImportContentValidator validator = new ImportContentValidator(2097152);
+        ConverterCatalogService catalog = TestCatalog.create();
+        ImportContentValidator validator = new ImportContentValidator(2097152, catalog);
         proxy = mock(QConvertProxy.class);
         projectService = mock(ProjectService.class);
         projectRepository = mock(ProjectRepository.class);
@@ -50,6 +51,7 @@ class ProjectImportServiceTest {
 
         service = new ProjectImportService(
                 validator,
+                catalog,
                 proxy,
                 projectService,
                 projectRepository,
@@ -212,5 +214,19 @@ class ProjectImportServiceTest {
                 service.represent(email, reqIonq));
         assertEquals(ImportException.INVALID_FORMAT, ex.getErrorCode());
         assertEquals(400, ex.getHttpStatus());
+    }
+
+    @Test
+    void testRepresentQasm3CallsConverterWithQasm3() throws Exception {
+        JsonNode quirk = mapper.readTree(bellQuirkOutput);
+        when(proxy.convertOne(anyString(), eq("quirk"), eq("qasm3"))).thenReturn(
+                new QConvertResult(true, "OPENQASM 3.0;\nqubit[2] q;", null));
+
+        RepresentationDTO rep = service.represent(email, new RepresentRequestDTO(email, quirk, "qasm3"));
+
+        assertEquals("qasm3", rep.getFormat());
+        assertEquals(".qasm", rep.getExtension());
+        assertTrue(rep.getCode().startsWith("OPENQASM 3.0;"));
+        verify(proxy).convertOne(anyString(), eq("quirk"), eq("qasm3"));
     }
 }

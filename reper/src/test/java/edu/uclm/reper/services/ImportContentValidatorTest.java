@@ -14,7 +14,7 @@ class ImportContentValidatorTest {
 
     @BeforeEach
     void setUp() {
-        validator = new ImportContentValidator(2097152);
+        validator = new ImportContentValidator(2097152, TestCatalog.create());
     }
 
     @Test
@@ -23,7 +23,7 @@ class ImportContentValidatorTest {
                 "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[2];\nh q[0];\ncx q[0],q[1];");
         var res = validator.validate(item);
         assertEquals("bell.qasm", res.fileName());
-        assertEquals(ImportFormat.QASM, res.format());
+        assertEquals("qasm", res.format().id());
         assertNotNull(res.code());
     }
 
@@ -32,42 +32,42 @@ class ImportContentValidatorTest {
         ImportItemDTO item = new ImportItemDTO("ghz.quil", "quil", "ghz", "H 0\nCNOT 0 1");
         var res = validator.validate(item);
         assertEquals("ghz.quil", res.fileName());
-        assertEquals(ImportFormat.QUIL, res.format());
+        assertEquals("quil", res.format().id());
     }
 
     @Test
     void testAcceptedQuirk() {
         ImportItemDTO item = new ImportItemDTO("b.json", "quirk", "b", "{\"cols\":[[\"H\"],[\"•\",\"X\"]]}");
         var res = validator.validate(item);
-        assertEquals(ImportFormat.QUIRK, res.format());
+        assertEquals("quirk", res.format().id());
     }
 
     @Test
     void testAcceptedQobj() {
         ImportItemDTO item = new ImportItemDTO("q.json", "qobj", "q", "{\"experiments\":[]}");
         var res = validator.validate(item);
-        assertEquals(ImportFormat.QOBJ, res.format());
+        assertEquals("qobj", res.format().id());
     }
 
     @Test
     void testAcceptedIonq() {
         ImportItemDTO item = new ImportItemDTO("i.json", "ionq", "i", "{\"circuit\":[]}");
         var res = validator.validate(item);
-        assertEquals(ImportFormat.IONQ, res.format());
+        assertEquals("ionq", res.format().id());
     }
 
     @Test
     void testAcceptedQuantumCircuit() {
         ImportItemDTO item = new ImportItemDTO("c.json", "quantum-circuit", "c", "{\"gates\":[]}");
         var res = validator.validate(item);
-        assertEquals(ImportFormat.QUANTUM_CIRCUIT, res.format());
+        assertEquals("quantum-circuit", res.format().id());
     }
 
     @Test
     void testAcceptedQubitToaster() {
         ImportItemDTO item = new ImportItemDTO("t.json", "qubit-toaster", "t", "{}");
         var res = validator.validate(item);
-        assertEquals(ImportFormat.QUBIT_TOASTER, res.format());
+        assertEquals("qubit-toaster", res.format().id());
     }
 
     @Test
@@ -75,7 +75,7 @@ class ImportContentValidatorTest {
         ImportItemDTO item = new ImportItemDTO(null, "quirk", "x", "{\"cols\":[]}");
         var res = validator.validate(item);
         assertNull(res.fileName());
-        assertEquals(ImportFormat.QUIRK, res.format());
+        assertEquals("quirk", res.format().id());
     }
 
     @Test
@@ -83,7 +83,7 @@ class ImportContentValidatorTest {
         ImportItemDTO item = new ImportItemDTO("bell.py", "qiskit", "bell",
                 "from qiskit import QuantumCircuit\nqc = QuantumCircuit(2, 2)\nqc.h(0)\nqc.cx(0, 1)\n");
         var res = validator.validate(item);
-        assertEquals(ImportFormat.QISKIT, res.format());
+        assertEquals("qiskit", res.format().id());
         assertEquals("bell.py", res.fileName());
     }
 
@@ -92,14 +92,14 @@ class ImportContentValidatorTest {
         ImportItemDTO item = new ImportItemDTO("bell.py", "cirq", "bell",
                 "import cirq\nq = cirq.LineQubit.range(2)\ncircuit = cirq.Circuit(cirq.H(q[0]), cirq.CNOT(*q))\n");
         var res = validator.validate(item);
-        assertEquals(ImportFormat.CIRQ, res.format());
+        assertEquals("cirq", res.format().id());
     }
 
     @Test
     void testAcceptedPastedQiskit() {
         ImportItemDTO item = new ImportItemDTO(null, "qiskit", "pegado",
                 "# comentario\nimport qiskit\nqc = qiskit.QuantumCircuit(1)\n");
-        assertEquals(ImportFormat.QISKIT, validator.validate(item).format());
+        assertEquals("qiskit", validator.validate(item).format().id());
     }
 
     @Test
@@ -122,10 +122,11 @@ class ImportContentValidatorTest {
 
     @Test
     void testPythonFormatsExposed() {
-        assertEquals(ImportFormat.QISKIT, ImportFormat.fromId("qiskit").orElseThrow());
-        assertEquals(ImportFormat.CIRQ, ImportFormat.fromId("CIRQ").orElseThrow());
-        assertTrue(ImportFormat.QISKIT.isRepresentable());
-        assertTrue(ImportFormat.CIRQ.acceptsExtension(".py"));
+        var catalog = TestCatalog.create();
+        assertEquals("qiskit", catalog.find("qiskit").orElseThrow().id());
+        assertEquals("cirq", catalog.find("CIRQ").orElseThrow().id());
+        assertTrue(catalog.find("qiskit").orElseThrow().representable());
+        assertTrue(catalog.find("cirq").orElseThrow().acceptsExtension(".py"));
     }
 
     @Test
@@ -181,7 +182,7 @@ class ImportContentValidatorTest {
         ImportItemDTO item = new ImportItemDTO("large.qasm", "qasm", "large", code);
         var res = validator.validate(item);
         assertEquals("large.qasm", res.fileName());
-        assertEquals(ImportFormat.QASM, res.format());
+        assertEquals("qasm", res.format().id());
     }
 
     @Test
@@ -199,11 +200,40 @@ class ImportContentValidatorTest {
     }
 
     @Test
-    void testRejectedOpenQasm3() {
-        ImportItemDTO item = new ImportItemDTO("bell.qasm", "qasm", "bell", "OPENQASM 3;");
+    void testQasmAcceptsOpenQasm3() {
+        ImportItemDTO item = new ImportItemDTO("g.qasm", "qasm", "g", "// MQT\nOPENQASM 3.0;\ninclude \"stdgates.inc\";\nqubit[2] q;");
+        assertEquals("qasm", validator.validate(item).format().id());
+    }
+
+    @Test
+    void testQasm3AcceptsAllThreeXHeaders() {
+        for (String header : new String[] {"OPENQASM 3.0;", "OPENQASM 3;", "OPENQASM 3.1;"}) {
+            ImportItemDTO item = new ImportItemDTO("g.qasm", "qasm3", "g", header + "\nqubit q;");
+            assertEquals("qasm3", validator.validate(item).format().id(), header);
+        }
+    }
+
+    @Test
+    void testQasm3RejectsOpenQasm2() {
+        ImportItemDTO item = new ImportItemDTO("g.qasm", "qasm3", "g", "OPENQASM 2.0;\nqreg q[1];");
         ImportException ex = assertThrows(ImportException.class, () -> validator.validate(item));
         assertEquals(ImportException.INVALID_CONTENT, ex.getErrorCode());
-        assertTrue(ex.getMessage().contains("Only OpenQASM 2.0 is supported"));
+        assertTrue(ex.getMessage().contains("Missing 'OPENQASM 3.0;' header"));
+    }
+
+    @Test
+    void testQasm3AcceptsQasmExtensionAndRejectsOthers() {
+        ImportItemDTO bad = new ImportItemDTO("g.json", "qasm3", "g", "OPENQASM 3.0;");
+        ImportException ex = assertThrows(ImportException.class, () -> validator.validate(bad));
+        assertEquals(ImportException.INVALID_EXTENSION, ex.getErrorCode());
+    }
+
+    @Test
+    void testUnknownLanguage() {
+        ImportItemDTO item = new ImportItemDTO("g.qasm", "nope", "g", "x");
+        ImportException ex = assertThrows(ImportException.class, () -> validator.validate(item));
+        assertEquals(ImportException.INVALID_FORMAT, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("Unknown language"));
     }
 
     @Test
@@ -211,7 +241,7 @@ class ImportContentValidatorTest {
         ImportItemDTO item = new ImportItemDTO("bell.qasm", "qasm", "bell", "qreg q[2];");
         ImportException ex = assertThrows(ImportException.class, () -> validator.validate(item));
         assertEquals(ImportException.INVALID_CONTENT, ex.getErrorCode());
-        assertTrue(ex.getMessage().contains("Missing 'OPENQASM 2.0;' header"));
+        assertTrue(ex.getMessage().contains("Missing 'OPENQASM 2.0;' or 'OPENQASM 3.0;' header"));
     }
 
     @Test

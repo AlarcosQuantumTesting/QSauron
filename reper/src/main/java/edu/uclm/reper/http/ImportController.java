@@ -4,7 +4,8 @@ import edu.uclm.reper.dto.ConvertRequestDTO;
 import edu.uclm.reper.dto.ImportRequestDTO;
 import edu.uclm.reper.dto.RepresentRequestDTO;
 import edu.uclm.reper.services.ImportException;
-import edu.uclm.reper.services.ImportFormat;
+import edu.uclm.reper.services.ConverterCatalogService;
+import edu.uclm.reper.services.ConverterFormat;
 import edu.uclm.reper.services.ProjectImportService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,7 +18,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +27,7 @@ import java.util.Map;
 public class ImportController extends BaseController {
 
     private final ProjectImportService service;
+    private final ConverterCatalogService catalog;
     private final int maxFiles;
     private final long maxFileBytes;
     private final long maxTotalBytes;
@@ -34,11 +35,13 @@ public class ImportController extends BaseController {
 
     public ImportController(
             ProjectImportService service,
+            ConverterCatalogService catalog,
             @Value("${app.import.max-files:20}") int maxFiles,
             @Value("${app.import.max-file-bytes:2097152}") long maxFileBytes,
             @Value("${app.import.max-total-bytes:20971520}") long maxTotalBytes,
             @Value("${app.import.max-qubits:16}") int maxQubits) {
         this.service = service;
+        this.catalog = catalog;
         this.maxFiles = maxFiles;
         this.maxFileBytes = maxFileBytes;
         this.maxTotalBytes = maxTotalBytes;
@@ -47,8 +50,8 @@ public class ImportController extends BaseController {
 
     @GetMapping("/formats")
     public ResponseEntity<Map<String, Object>> getFormats() {
-        List<Map<String, Object>> formats = Arrays.stream(ImportFormat.values())
-                .map(ImportFormat::toMap)
+        List<Map<String, Object>> formats = catalog.importable().stream()
+                .map(ConverterFormat::toImportMap)
                 .toList();
 
         Map<String, Object> limits = new LinkedHashMap<>();

@@ -9,17 +9,26 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 @Component
 public class ImportContentValidator {
 
-    public record ValidatedItem(String fileName, ImportFormat format, String code, byte[] utf8) {}
+    public record ValidatedItem(String fileName, ConverterFormat format, String code, byte[] utf8) {}
+
+    // Reglas de negocio del import por id de formato (no es una lista de formatos: un formato
+    // nuevo sin regla solo pasa las comprobaciones genéricas)
+    private static final Map<String, String> REQUIRED_JSON_KEY = Map.of(
+            "quirk", "cols", "qobj", "experiments", "ionq", "circuit", "quantum-circuit", "gates");
 
     private final long maxFileBytes;
+    private final ConverterCatalogService catalog;
     private final ObjectMapper jsonMapper;
 
-    public ImportContentValidator(@Value("${app.import.max-file-bytes:2097152}") long maxFileBytes) {
+    public ImportContentValidator(@Value("${app.import.max-file-bytes:2097152}") long maxFileBytes,
+            ConverterCatalogService catalog) {
         this.maxFileBytes = maxFileBytes;
+        this.catalog = catalog;
         JsonFactory jsonFactory = JsonFactory.builder()
                 .streamReadConstraints(StreamReadConstraints.builder().maxNestingDepth(64).build())
                 .build();
@@ -32,7 +41,8 @@ public class ImportContentValidator {
         }
 
         // 1. Lenguaje
-        ImportFormat format = ImportFormat.fromId(item.getFormat())
+        ConverterFormat format = catalog.find(item.getFormat())
+                .filter(ConverterFormat::source)
                 .orElseThrow(() -> new ImportException(ImportException.INVALID_FORMAT, "Unknown language: " + item.getFormat()));
 
         // 2. Nombre de fichero
@@ -57,9 +67,9 @@ public class ImportContentValidator {
             cleanFileName = baseName;
 
             if (!format.acceptsExtension(ext)) {
-                String expected = format.getExtensions().isEmpty() ? "" : format.getExtensions().get(0);
+                String expected = format.extensions().isEmpty() ? "" : format.extensions().get(0);
                 throw new ImportException(ImportException.INVALID_EXTENSION,
-                        cleanFileName + " is not a " + format.getLabel() + " file (expected " + expected + ")");
+                        cleanFileName + " is not a " + format.label() + " file (expected " + expected + ")");
             }
         }
 
@@ -93,42 +103,23 @@ public class ImportContentValidator {
             }
         }
 
-        // 6. Estructura
-        if (format == ImportFormat.QASM) {
-            String[] lines = code.split("\\R");
-            String firstStatement = null;
-            for (String line : lines) {
-                String stripped = line.strip();
-                if (stripped.startsWith("//")) {
-                    continue;
-                }
-                int commentIdx = stripped.indexOf("//");
-                if (commentIdx >= 0) {
-                    stripped = stripped.substring(0, commentIdx).strip();
-                }
-                if (!stripped.isEmpty()) {
-                    firstStatement = stripped;
-                    break;
-                }
+        // 6. Estructura (reglas por id de formato)
+        String id = format.id();
+        if (id.equals("qasm") || id.equals("qasm3")) {
+            boolean v3Only = id.equals("qasm3");
+            String firstStatement = firstStatement(code);
+            String missing = v3Only ? "Missing 'OPENQASM 3.0;' header" : "Missing 'OPENQASM 2.0;' or 'OPENQASM 3.0;' header";
+            String header = v3Only ? "^OPENQASM\\s+3(\\.\\d+)?\\s*;.*" : "^OPENQASM\\s+(2(\\.0)?|3(\\.\\d+)?)\\s*;.*";
+            if (firstStatement == null || !firstStatement.matches(header)) {
+                throw new ImportException(ImportException.INVALID_CONTENT, missing);
             }
-            if (firstStatement == null) {
-                throw new ImportException(ImportException.INVALID_CONTENT, "Missing 'OPENQASM 2.0;' header");
-            }
-            if (firstStatement.matches("^OPENQASM\\s+3.*")) {
-                throw new ImportException(ImportException.INVALID_CONTENT, "Only OpenQASM 2.0 is supported");
-            }
-            if (!firstStatement.matches("^OPENQASM\\s+2(\\.0)?\\s*;.*")) {
-                throw new ImportException(ImportException.INVALID_CONTENT, "Missing 'OPENQASM 2.0;' header");
-            }
-        } else if (format == ImportFormat.QISKIT || format == ImportFormat.CIRQ) {
+        } else if (id.equals("qiskit") || id.equals("cirq")) {
             // Scripts Python: q-convert-api los ejecuta; aquí solo se comprueba que usen la librería
-            String library = format == ImportFormat.QISKIT ? "qiskit" : "cirq";
-            if (!code.matches("(?s).*\\b(import|from)\\s+" + library + "\\b.*")) {
+            if (!code.matches("(?s).*\\b(import|from)\\s+" + id + "\\b.*")) {
                 throw new ImportException(ImportException.INVALID_CONTENT,
-                        "Not a " + format.getLabel() + " file: missing '" + library + "' import");
+                        "Not a " + format.label() + " file: missing '" + id + "' import");
             }
-        } else if (format != ImportFormat.QUIL) {
-            // Formatos JSON
+        } else if (format.extensions().contains(".json")) {
             JsonNode root;
             try {
                 root = jsonMapper.readTree(code);
@@ -139,35 +130,36 @@ public class ImportContentValidator {
                 throw new ImportException(ImportException.INVALID_CONTENT, "Invalid JSON");
             }
 
-            String requiredKey = null;
-            switch (format) {
-                case QUIRK:
-                    requiredKey = "cols";
-                    break;
-                case QOBJ:
-                    requiredKey = "experiments";
-                    break;
-                case IONQ:
-                    requiredKey = "circuit";
-                    break;
-                case QUANTUM_CIRCUIT:
-                    requiredKey = "gates";
-                    break;
-                default:
-                    break;
-            }
-
+            String requiredKey = REQUIRED_JSON_KEY.get(id);
             if (requiredKey != null) {
                 JsonNode keyNode = root.get(requiredKey);
                 if (keyNode == null || !keyNode.isArray()) {
                     throw new ImportException(ImportException.INVALID_CONTENT,
-                            "Not a " + format.getLabel() + " file: missing \"" + requiredKey + "\"");
+                            "Not a " + format.label() + " file: missing \"" + requiredKey + "\"");
                 }
             }
         }
 
         // 7. Retorno
         return new ValidatedItem(cleanFileName, format, code, utf8);
+    }
+
+    /** Primera sentencia del fichero sin comentarios de línea, o null si está vacío. */
+    private static String firstStatement(String code) {
+        for (String line : code.split("\\R")) {
+            String stripped = line.strip();
+            if (stripped.startsWith("//")) {
+                continue;
+            }
+            int commentIdx = stripped.indexOf("//");
+            if (commentIdx >= 0) {
+                stripped = stripped.substring(0, commentIdx).strip();
+            }
+            if (!stripped.isEmpty()) {
+                return stripped;
+            }
+        }
+        return null;
     }
 
     private static String formatBytes(long b) {
