@@ -3,7 +3,6 @@ package edu.uclm.reper.http;
 import edu.uclm.reper.dto.ConvertRequestDTO;
 import edu.uclm.reper.dto.ImportRequestDTO;
 import edu.uclm.reper.dto.RepresentRequestDTO;
-import edu.uclm.reper.services.ImportException;
 import edu.uclm.reper.services.ConverterCatalogService;
 import edu.uclm.reper.services.ConverterFormat;
 import edu.uclm.reper.services.ProjectImportService;
@@ -11,7 +10,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -86,14 +84,5 @@ public class ImportController extends BaseController {
         String email = body != null ? body.getEmail() : null;
         validateCookie(req, email);
         return ResponseEntity.ok(service.represent(email, body));
-    }
-
-    @ExceptionHandler(ImportException.class)
-    public ResponseEntity<Map<String, Object>> handleImportException(ImportException e) {
-        Map<String, Object> errorBody = Map.of(
-                "errorCode", e.getErrorCode(),
-                "error", e.getMessage() != null ? e.getMessage() : ""
-        );
-        return ResponseEntity.status(e.getHttpStatus()).body(errorBody);
     }
 }
