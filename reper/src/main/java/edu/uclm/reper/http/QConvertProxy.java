@@ -159,54 +159,97 @@ public class QConvertProxy {
         }
     }
 
-    public QConvertResult convertOne(String code, String sourceFormat, String destFormat) {
-        Map<String, Object> body = Map.of(
-                "code", code,
-                "sourceFormat", sourceFormat,
-                "destFormat", destFormat
-        );
+    /** Respuesta de q-convert-api tal cual: estado HTTP (2xx/4xx) y cuerpo JSON sin recortar. */
+    public record ProxyResponse(int status, JsonNode body) {}
 
+    /** Catálogo de formatos de q-convert-api (GET /api/formats), sin tocar. */
+    public JsonNode getFormats() {
         try {
-            return webClient.post()
+            String str = webClient.get()
+                    .uri("/api/formats")
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block(Duration.ofSeconds(timeoutSeconds));
+            if (str == null) {
+                throw new ImportException(ImportException.CONVERTER_UNAVAILABLE, "Code converter is not available", 503);
+            }
+            return objectMapper.readTree(str);
+        } catch (ImportException e) {
+            throw e;
+        } catch (Exception e) {
+            logger.error("Error communicating with q-convert-api getFormats: {}", e.getMessage(), e);
+            throw new ImportException(ImportException.CONVERTER_UNAVAILABLE, "Code converter is not available", 503);
+        }
+    }
+
+    /** true si q-convert-api responde 2xx en /api/health. */
+    public boolean health() {
+        try {
+            return Boolean.TRUE.equals(webClient.get()
+                    .uri("/api/health")
+                    .exchangeToMono(r -> Mono.just(r.statusCode().is2xxSuccessful()))
+                    .block(Duration.ofSeconds(Math.min(timeoutSeconds, 10))));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * POST /api/convert devolviendo el cuerpo completo y el estado. 5xx o fallo de red
+     * → ImportException(CONVERTER_UNAVAILABLE, 503).
+     */
+    public ProxyResponse convertRaw(Map<String, Object> body) {
+        try {
+            ProxyResponse response = webClient.post()
                     .uri("/api/convert")
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(BodyInserters.fromValue(body))
                     .exchangeToMono(clientResponse -> {
-                        if (clientResponse.statusCode().is4xxClientError()) {
-                            return clientResponse.bodyToMono(String.class)
-                                    .map(str -> {
-                                        try {
-                                            JsonNode json = objectMapper.readTree(str);
-                                            String err = json.has("error") ? json.get("error").asText() : json.toString();
-                                            return new QConvertResult(false, null, err);
-                                        } catch (Exception e) {
-                                            return new QConvertResult(false, null, str != null ? str : "Client error");
-                                        }
-                                    })
-                                    .defaultIfEmpty(new QConvertResult(false, null, "Conversion failed with client error"));
-                        }
+                        int status = clientResponse.statusCode().value();
                         if (clientResponse.statusCode().is5xxServerError()) {
-                            return Mono.error(new ImportException(ImportException.CONVERTER_UNAVAILABLE, "Code converter is not available", 503));
+                            return Mono.<ProxyResponse>error(new ImportException(
+                                    ImportException.CONVERTER_UNAVAILABLE, "Code converter is not available", 503));
                         }
                         return clientResponse.bodyToMono(String.class)
-                                .map(str -> {
-                                    try {
-                                        JsonNode json = objectMapper.readTree(str);
-                                        boolean success = json.has("success") && json.get("success").asBoolean();
-                                        String output = json.has("output") ? json.get("output").asText() : null;
-                                        String error = json.has("error") ? json.get("error").asText() : null;
-                                        return new QConvertResult(success, output, error);
-                                    } catch (Exception e) {
-                                        return new QConvertResult(false, null, "Failed to parse response: " + e.getMessage());
-                                    }
-                                });
+                                .defaultIfEmpty("")
+                                .map(str -> new ProxyResponse(status, parseBody(str, status)));
                     })
                     .block(Duration.ofSeconds(timeoutSeconds));
+            if (response == null) {
+                throw new ImportException(ImportException.CONVERTER_UNAVAILABLE, "Code converter is not available", 503);
+            }
+            return response;
         } catch (ImportException e) {
             throw e;
         } catch (Exception e) {
-            logger.error("Error communicating with q-convert-api convertOne: {}", e.getMessage(), e);
+            logger.error("Error communicating with q-convert-api convertRaw: {}", e.getMessage(), e);
             throw new ImportException(ImportException.CONVERTER_UNAVAILABLE, "Code converter is not available", 503);
         }
+    }
+
+    private JsonNode parseBody(String str, int status) {
+        try {
+            return objectMapper.readTree(str);
+        } catch (Exception e) {
+            String text = !str.isEmpty() ? str : (status >= 400 ? "Conversion failed with client error" : "Failed to parse response");
+            return objectMapper.createObjectNode().put("error", text);
+        }
+    }
+
+    public QConvertResult convertOne(String code, String sourceFormat, String destFormat) {
+        ProxyResponse r = convertRaw(Map.of(
+                "code", code,
+                "sourceFormat", sourceFormat,
+                "destFormat", destFormat
+        ));
+        JsonNode json = r.body();
+        if (r.status() >= 400) {
+            String err = json != null && json.has("error") ? json.get("error").asText() : String.valueOf(json);
+            return new QConvertResult(false, null, err);
+        }
+        boolean success = json.has("success") && json.get("success").asBoolean();
+        String output = json.has("output") ? json.get("output").asText() : null;
+        String error = json.has("error") ? json.get("error").asText() : null;
+        return new QConvertResult(success, output, error);
     }
 }
