@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -16,6 +17,7 @@ import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import reactor.core.publisher.Mono;
+import reactor.netty.http.client.HttpClient;
 
 @Service
 public class MutantAnalyticsProxy {
@@ -38,6 +40,8 @@ public class MutantAnalyticsProxy {
         this.timeoutMinutes = timeoutMinutes;
         this.webClient = WebClient.builder()
                 .baseUrl(urlMutantAnalytics)
+                // Pide gzip a mutant analytics (Accept-Encoding) y descomprime de forma transparente
+                .clientConnector(new ReactorClientHttpConnector(HttpClient.create().compress(true)))
                 .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(maxResponseBytes))
                 .build();
     }
