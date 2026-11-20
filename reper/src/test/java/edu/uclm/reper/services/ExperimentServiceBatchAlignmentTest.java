@@ -103,3 +103,4 @@ class ExperimentServiceBatchAlignmentTest {
         verify(projectService).saveExperimentBatchResults(sentMutants);
     }
 }
+

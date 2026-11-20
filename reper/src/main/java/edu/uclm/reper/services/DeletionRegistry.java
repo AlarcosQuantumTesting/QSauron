@@ -42,3 +42,4 @@ public class DeletionRegistry {
         return deletingKeys.contains("project:" + projectId) || deletingKeys.contains("cycle:" + projectId + ":" + cycleId);
     }
 }
+

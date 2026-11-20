@@ -152,7 +152,8 @@ public class CycleStatisticsService {
         return tempFile;
     }
 
-    public Map<String, Object> calculateCycleStatistics(String projectId, int cycleId, Double threshold, Integer inputBits) {
+    public Map<String, Object> calculateCycleStatistics(String projectId, int cycleId, Double threshold,
+            Integer inputBits) {
         Path csv = null;
         try {
             csv = writeKillingMatrixCsv(projectId, cycleId, inputBits);

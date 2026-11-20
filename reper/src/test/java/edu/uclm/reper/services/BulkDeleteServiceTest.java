@@ -137,3 +137,4 @@ class BulkDeleteServiceTest {
         inOrder.verify(projectRepository).deleteById(projectId);
     }
 }
+

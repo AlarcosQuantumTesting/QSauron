@@ -33,3 +33,4 @@ class CompressionConfigTest {
         assertTrue(Arrays.asList(compression.getMimeTypes()).contains("text/csv"));
     }
 }
+

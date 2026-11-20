@@ -88,3 +88,4 @@ class CycleStatisticsServiceTest {
         assertEquals(expected, content);
     }
 }
+
