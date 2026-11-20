@@ -61,6 +61,12 @@ public class MutantCycle {
     @JsonBackReference("experiment-mutantCycles")
     private Experiment experiment;
 
+    @Column(name = "circuit_index")
+    private Integer circuitIndex;
+
+    @Column(name = "generation_completed")
+    private Boolean generationCompleted;
+
     // Constructors
     public MutantCycle() {
     }
@@ -125,5 +131,21 @@ public class MutantCycle {
 
     public void setExperiment(Experiment experiment) {
         this.experiment = experiment;
+    }
+
+    public Integer getCircuitIndex() {
+        return circuitIndex;
+    }
+
+    public void setCircuitIndex(Integer circuitIndex) {
+        this.circuitIndex = circuitIndex;
+    }
+
+    public Boolean getGenerationCompleted() {
+        return generationCompleted;
+    }
+
+    public void setGenerationCompleted(Boolean generationCompleted) {
+        this.generationCompleted = generationCompleted;
     }
 }

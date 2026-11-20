@@ -11,6 +11,9 @@ public class CycleStatsDTO {
     private long aliveCount;
     private long notExecutedCount;
     private Double mutationScore;
+    private Boolean generationCompleted;
+    private String inputQubits;
+    private String outputQubits;
 
     public CycleStatsDTO() {}
 
@@ -43,4 +46,13 @@ public class CycleStatsDTO {
 
     public Double getMutationScore() { return mutationScore; }
     public void setMutationScore(Double mutationScore) { this.mutationScore = mutationScore; }
+
+    public Boolean getGenerationCompleted() { return generationCompleted; }
+    public void setGenerationCompleted(Boolean generationCompleted) { this.generationCompleted = generationCompleted; }
+
+    public String getInputQubits() { return inputQubits; }
+    public void setInputQubits(String inputQubits) { this.inputQubits = inputQubits; }
+
+    public String getOutputQubits() { return outputQubits; }
+    public void setOutputQubits(String outputQubits) { this.outputQubits = outputQubits; }
 }

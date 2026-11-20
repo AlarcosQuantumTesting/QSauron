@@ -20,6 +20,8 @@ import java.nio.charset.StandardCharsets;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -43,11 +45,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import edu.uclm.reper.dto.CircuitConfigDTO;
 import edu.uclm.reper.dto.CreateExperimentDTO;
+import edu.uclm.reper.dto.ExecParams;
 import edu.uclm.reper.dto.ExperimentProgressDTO;
 import edu.uclm.reper.dto.CycleStatsDTO;
 import edu.uclm.reper.dto.ExperimentDetailDTO;
 import edu.uclm.reper.dto.ExperimentListItemDTO;
 import edu.uclm.reper.dto.NoiseConfigDTO;
+import edu.uclm.reper.dto.MergePreviewDTO;
+import edu.uclm.reper.dto.ResumeExperimentDTO;
+import edu.uclm.reper.dto.ResumePreviewDTO;
+import edu.uclm.reper.repository.ExecConfigRepository;
 import edu.uclm.reper.model.ExecConfig;
 import edu.uclm.reper.model.Experiment;
 import edu.uclm.reper.model.Mutant;
@@ -87,6 +94,9 @@ public class ExperimentService {
     private MutantRepository mutantRepository;
 
     @Autowired
+    private edu.uclm.reper.repository.MutantResultRepository mutantResultRepository;
+
+    @Autowired
     private OperatorRepository operatorRepository;
 
     @Autowired
@@ -94,6 +104,24 @@ public class ExperimentService {
 
     @Autowired
     private ExperimentNotificationService notificationService;
+
+    @Autowired
+    private ExperimentRunRegistry runRegistry;
+
+    @Autowired
+    private ExecConfigRepository execConfigRepository;
+
+    @Autowired
+    private org.springframework.transaction.support.TransactionTemplate transactionTemplate;
+
+    @Autowired
+    private BulkDeleteService bulkDeleteService;
+
+    @Autowired
+    private BackgroundJobService backgroundJobService;
+
+    @Autowired
+    private DeletionRegistry deletionRegistry;
 
     private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -140,6 +168,21 @@ public class ExperimentService {
     public ExperimentService() {
     }
 
+    private String serializeDefinition(CreateExperimentDTO dto) {
+        if (dto == null) return null;
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            String origEmail = dto.getEmail();
+            dto.setEmail(null);
+            String json = mapper.writeValueAsString(dto);
+            dto.setEmail(origEmail);
+            return json;
+        } catch (Exception e) {
+            logger.warn("Could not serialize experiment definition", e);
+            return null;
+        }
+    }
+
     public Experiment createExperiment(CreateExperimentDTO dto, String userId) throws Exception {
         Optional<User> userOpt = userRepository.findById(userId);
         if (userOpt.isEmpty()) {
@@ -161,6 +204,7 @@ public class ExperimentService {
         execConfig.setZombieError(dto.getZombieError());
         execConfig.setShots(dto.getShots());
         experiment.setExecConfig(execConfig);
+        experiment.setDefinitionJson(serializeDefinition(dto));
 
         experiment = experimentRepository.save(experiment);
 
@@ -179,6 +223,7 @@ public class ExperimentService {
 
     private void runExperimentAsync(String experimentId, CreateExperimentDTO dto, String userEmail) {
         long startTime = System.currentTimeMillis();
+        runRegistry.register(experimentId);
         List<NoiseConfigDTO> effNoise = dto.effectiveNoiseConfigs();
         if (effNoise != null && !effNoise.isEmpty()) {
             StringBuilder sb = new StringBuilder();
@@ -195,9 +240,10 @@ public class ExperimentService {
                 return;
             }
 
-            for (CircuitConfigDTO cc : configs) {
+            for (int i = 0; i < configs.size(); i++) {
+                CircuitConfigDTO cc = configs.get(i);
                 long tCircuitStart = System.nanoTime();
-                processSingleCircuit(experimentId, cc, dto);
+                processSingleCircuit(experimentId, cc, dto, i);
                 long circuitTotalMs = (System.nanoTime() - tCircuitStart) / 1_000_000;
                 logger.info("[PERF] exp={} circuit={} totalMs={}", experimentId, cc.getProjectId(), circuitTotalMs);
 
@@ -237,11 +283,38 @@ public class ExperimentService {
                 }
             } catch (Throwable ignored) {
             }
+        } finally {
+            runRegistry.unregister(experimentId);
+        }
+    }
+
+    /**
+     * Al arrancar la aplicación, marca como FAILED cualquier experimento que quedó
+     * en estado RUNNING (porque reper se reinició durante su ejecución).
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    public void markInterruptedExperimentsOnStartup() {
+        List<Experiment> running = experimentRepository.findByStatus("RUNNING");
+        if (running.isEmpty()) {
+            return;
+        }
+        logger.warn("Encontrados {} experimentos en estado RUNNING al arrancar — marcando como FAILED", running.size());
+        long now = System.currentTimeMillis();
+        for (Experiment exp : running) {
+            String msg = "Interrumpido: reper se reinició durante la ejecución";
+            markExperimentFinished(exp.getId(), "FAILED", msg, now);
+            logger.warn("exp={} marcado FAILED por reinicio de reper", exp.getId());
         }
     }
 
     @org.springframework.transaction.annotation.Transactional
     public void processSingleCircuit(String experimentId, CircuitConfigDTO cc, CreateExperimentDTO dto)
+            throws Exception {
+        processSingleCircuit(experimentId, cc, dto, 0);
+    }
+
+    @org.springframework.transaction.annotation.Transactional
+    public void processSingleCircuit(String experimentId, CircuitConfigDTO cc, CreateExperimentDTO dto, int circuitIndex)
             throws Exception {
         Project project = projectRepository.findByIdWithQProgram(cc.getProjectId())
                 .or(() -> projectRepository.findById(cc.getProjectId()))
@@ -257,7 +330,7 @@ public class ExperimentService {
 
         // 1. Create the empty MutantCycle
         long tCycleStart = System.nanoTime();
-        MutantCycle newCycle = createEmptyMutantCycle(project, experimentId, dto);
+        MutantCycle newCycle = createEmptyMutantCycle(project, experimentId, dto, circuitIndex, inputQubits, outputQubits);
         long createCycleMs = (System.nanoTime() - tCycleStart) / 1_000_000;
 
         // 2. Generate mutants in qumugen and save them in batches
@@ -266,14 +339,19 @@ public class ExperimentService {
                 dto.effectiveNoiseConfigs(), newCycle, experimentId);
         long generateMs = (System.nanoTime() - tGenStart) / 1_000_000;
 
+        newCycle.setGenerationCompleted(true);
+        mutantCycleRepository.save(newCycle);
+
         logger.info("[PERF] exp={} circuit={} generateMs={} createCycleMs={} mutants={}",
                 experimentId, cc.getProjectId(), generateMs, createCycleMs, mutantCount);
 
         // 3. Execute original circuit & mutants in qiskitexec
-        executeCycleInQiskitExec(experimentId, project, newCycle, inputQubits, outputQubits, dto);
+        ExecParams params = ExecParams.fromDto(dto, inputQubits, outputQubits);
+        executeCycleInQiskitExec(experimentId, project, newCycle, params, false);
     }
 
-    private MutantCycle createEmptyMutantCycle(Project project, String experimentId, CreateExperimentDTO dto) {
+    private MutantCycle createEmptyMutantCycle(Project project, String experimentId, CreateExperimentDTO dto,
+            int circuitIndex, String inputQubits, String outputQubits) {
         long tCyclesStart = System.nanoTime();
         List<MutantCycle> existingCycles = mutantCycleRepository.findByProjectId(project.getId());
         int nextCycleId = 1;
@@ -290,6 +368,8 @@ public class ExperimentService {
         newCycle.setId(nextCycleId);
         newCycle.setName(dto.getName() + " - " + project.getName());
         newCycle.setProject(project);
+        newCycle.setCircuitIndex(circuitIndex);
+        newCycle.setGenerationCompleted(false);
 
         long tExpStart = System.nanoTime();
         newCycle.setExperiment(experimentRepository.getReferenceById(experimentId));
@@ -300,6 +380,8 @@ public class ExperimentService {
         cycleExecConfig.setToleratedError(dto.getToleratedError());
         cycleExecConfig.setZombieError(dto.getZombieError());
         cycleExecConfig.setShots(dto.getShots());
+        cycleExecConfig.setInputQubits(inputQubits);
+        cycleExecConfig.setOutputQubits(outputQubits);
         cycleExecConfig.setMutantCycle(newCycle);
         newCycle.setExecConfig(cycleExecConfig);
 
@@ -503,32 +585,33 @@ public class ExperimentService {
         }
     }
 
-    private void executeCycleInQiskitExec(String experimentId, Project project, MutantCycle cycle, String inputQubits,
-            String outputQubits,
-            CreateExperimentDTO dto) throws Exception {
+    public void executeCycleInQiskitExec(String experimentId, Project project, MutantCycle cycle,
+            ExecParams params, boolean onlyPending) throws Exception {
         try {
             long tOrigCodeStart = System.nanoTime();
-            String originalWholeCode = getOriginalQiskitCode(project, outputQubits, dto.getShots());
+            String originalWholeCode = getOriginalQiskitCode(project, params.outputQubits(), params.shots());
             long originalCodeMs = (System.nanoTime() - tOrigCodeStart) / 1_000_000;
 
             long tOrigExecStart = System.nanoTime();
-            List<?> originalResults = executeOriginalInQiskitExec(project, originalWholeCode, inputQubits, outputQubits,
-                    dto.getExecAlgorithm());
+            List<?> originalResults = executeOriginalInQiskitExec(project, originalWholeCode, params.inputQubits(),
+                    params.outputQubits(), params.execAlgorithm());
             long originalExecMs = (System.nanoTime() - tOrigExecStart) / 1_000_000;
 
-            int chunkSize = calculateChunkSize(inputQubits, originalExecMs);
+            int chunkSize = calculateChunkSize(params.inputQubits(), originalExecMs);
             logger.info("[PERF] exp={} circuit={} originalCodeMs={} originalExecMs={} chunkSize={}",
                     experimentId, project.getId(), originalCodeMs, originalExecMs, chunkSize);
 
             int fromIndex = 0;
             while (true) {
-                List<Mutant> batch = mutantRepository.findCircuitsPage(project.getId(), cycle.getId(), fromIndex,
-                        PageRequest.of(0, chunkSize));
+                List<Mutant> batch = onlyPending
+                        ? mutantRepository.findPendingCircuitsPage(project.getId(), cycle.getId(), fromIndex,
+                                PageRequest.of(0, chunkSize))
+                        : mutantRepository.findCircuitsPage(project.getId(), cycle.getId(), fromIndex,
+                                PageRequest.of(0, chunkSize));
                 if (batch.isEmpty()) {
                     break;
                 }
-                executeBatchWithSplit(experimentId, project, cycle, new ArrayList<>(batch), originalResults,
-                        inputQubits, outputQubits, dto);
+                executeBatchWithSplit(experimentId, project, cycle, new ArrayList<>(batch), originalResults, params);
                 fromIndex = batch.get(batch.size() - 1).getIndex() + 1;
             }
         } catch (Exception e) {
@@ -682,19 +765,18 @@ public class ExperimentService {
     }
 
     private void executeBatchWithSplit(String experimentId, Project project, MutantCycle cycle, List<Mutant> batch,
-            List<?> originalResults, String inputQubits, String outputQubits, CreateExperimentDTO dto)
+            List<?> originalResults, ExecParams params)
             throws Exception {
         try {
-            executeAndProcessMutantBatch(experimentId, project, cycle, batch, originalResults, inputQubits,
-                    outputQubits, dto);
+            executeAndProcessMutantBatch(experimentId, project, cycle, batch, originalResults, params);
         } catch (org.springframework.web.client.HttpStatusCodeException ex) {
             if (ex.getStatusCode().value() == 504 && batch.size() > 1) {
                 logger.warn("[PERF] exp={} 504 en lote de {} mutantes; se divide en dos", experimentId, batch.size());
                 int mid = batch.size() / 2;
                 executeBatchWithSplit(experimentId, project, cycle, new ArrayList<>(batch.subList(0, mid)),
-                        originalResults, inputQubits, outputQubits, dto);
+                        originalResults, params);
                 executeBatchWithSplit(experimentId, project, cycle, new ArrayList<>(batch.subList(mid, batch.size())),
-                        originalResults, inputQubits, outputQubits, dto);
+                        originalResults, params);
             } else {
                 throw ex;
             }
@@ -719,18 +801,45 @@ public class ExperimentService {
         return Math.min(byInputs, byCost);
     }
 
+    public record FormattedBatch(List<Mutant> sentMutants, List<Map<String, Object>> formattedList) {}
+
+    public FormattedBatch formatMutantBatch(Project project, List<Mutant> batch) {
+        List<Map<String, Object>> batchFormatted = new ArrayList<>();
+        List<Mutant> sentMutants = new ArrayList<>();
+        int qubits = project.getQProgram() != null ? project.getQProgram().getQubits() : 1;
+        for (Mutant m : batch) {
+            if (m.getQuirkCircuit() != null && m.getQuirkCircuit().getQuirkCircuit() != null) {
+                Map<String, Object> mQuirkMap = extractQuirkCode(m.getQuirkCircuit().getQuirkCircuit().getCode());
+                Map<String, Object> item = new HashMap<>();
+                item.put("mutantIndex", m.getIndex());
+                item.put("circuit", Map.of(
+                        "quirkCode", mQuirkMap,
+                        "qubits", qubits));
+                batchFormatted.add(item);
+                sentMutants.add(m);
+            }
+        }
+        return new FormattedBatch(sentMutants, batchFormatted);
+    }
+
     private void executeAndProcessMutantBatch(String experimentId, Project project, MutantCycle cycle,
             List<Mutant> batch,
-            List<?> originalResults, String inputQubits, String outputQubits, CreateExperimentDTO dto)
+            List<?> originalResults, ExecParams params)
             throws Exception {
-        List<Map<String, Object>> batchFormatted = formatMutantBatch(project, batch);
+        FormattedBatch formatted = formatMutantBatch(project, batch);
+        List<Mutant> sentMutants = formatted.sentMutants();
+        List<Map<String, Object>> batchFormatted = formatted.formattedList();
+
+        if (sentMutants.isEmpty()) {
+            return;
+        }
 
         Map<String, Object> multCodeBody = new HashMap<>();
         multCodeBody.put("mutants", batchFormatted);
-        multCodeBody.put("outputQubits", outputQubits);
+        multCodeBody.put("outputQubits", params.outputQubits());
 
         HttpEntity<Map<String, Object>> multCodeReq = new HttpEntity<>(multCodeBody, createJsonHeaders());
-        String multCodeUrl = qumugenUrl + "/qumugen/getMultipleQiskitCode?shots=" + dto.getShots()
+        String multCodeUrl = qumugenUrl + "/qumugen/getMultipleQiskitCode?shots=" + params.shots()
                 + "&qiskitTemplate=qiskitTemplateWindows.txt";
         long tCodeGenStart = System.nanoTime();
         ResponseEntity<List> multCodeResp = restTemplate.exchange(multCodeUrl, HttpMethod.PUT, multCodeReq, List.class);
@@ -741,11 +850,11 @@ public class ExperimentService {
         Map<String, Object> stratBody = new HashMap<>();
         stratBody.put("mutants", mutantCodes);
         stratBody.put("originalResults", originalResults);
-        stratBody.put("algorithm", dto.getExecAlgorithm());
-        stratBody.put("toleratedError", dto.getToleratedError());
-        stratBody.put("zombieError", dto.getZombieError());
-        stratBody.put("inputQubits", inputQubits);
-        stratBody.put("outputQubits", outputQubits);
+        stratBody.put("algorithm", params.execAlgorithm());
+        stratBody.put("toleratedError", params.toleratedError());
+        stratBody.put("zombieError", params.zombieError());
+        stratBody.put("inputQubits", params.inputQubits());
+        stratBody.put("outputQubits", params.outputQubits());
         stratBody.put("qubits", project.getQProgram().getQubits());
         stratBody.put("reduceTable", false);
 
@@ -785,33 +894,17 @@ public class ExperimentService {
         long saveMs = 0;
         if (stratResults != null) {
             long tSaveStart = System.nanoTime();
-            processAndSaveBatchResults(project.getId(), cycle.getId(), batch, stratResults);
+            processAndSaveBatchResults(project.getId(), cycle.getId(), sentMutants, stratResults);
             saveMs = (System.nanoTime() - tSaveStart) / 1_000_000;
         }
 
-        List<Integer> mutantIndices = batch.stream().map(Mutant::getIndex).collect(Collectors.toList());
+        List<Integer> mutantIndices = sentMutants.stream().map(Mutant::getIndex).collect(Collectors.toList());
         logger.info("[PERF] exp={} mutants={} codeGenMs={} strategyMs={} attempts={} saveMs={}",
                 experimentId, mutantIndices, codeGenMs, strategyMs, attempts, saveMs);
     }
 
-    private List<Map<String, Object>> formatMutantBatch(Project project, List<Mutant> batch) {
-        List<Map<String, Object>> batchFormatted = new ArrayList<>();
-        int qubits = project.getQProgram() != null ? project.getQProgram().getQubits() : 1;
-        for (Mutant m : batch) {
-            if (m.getQuirkCircuit() != null && m.getQuirkCircuit().getQuirkCircuit() != null) {
-                Map<String, Object> mQuirkMap = extractQuirkCode(m.getQuirkCircuit().getQuirkCircuit().getCode());
-                Map<String, Object> item = new HashMap<>();
-                item.put("mutantIndex", m.getIndex());
-                item.put("circuit", Map.of(
-                        "quirkCode", mQuirkMap,
-                        "qubits", qubits));
-                batchFormatted.add(item);
-            }
-        }
-        return batchFormatted;
-    }
 
-    private void processAndSaveBatchResults(String projectId, int cycleId, List<Mutant> batch,
+    void processAndSaveBatchResults(String projectId, int cycleId, List<Mutant> batch,
             List<List<Map<String, Object>>> stratResults) throws Exception {
         for (int mIdx = 0; mIdx < Math.min(batch.size(), stratResults.size()); mIdx++) {
             Mutant mutant = batch.get(mIdx);
@@ -834,21 +927,641 @@ public class ExperimentService {
         projectService.saveExperimentBatchResults(batch);
     }
 
+    private static final java.time.format.DateTimeFormatter ERROR_DATE_FORMAT =
+            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(java.time.ZoneId.systemDefault());
+
     private void markExperimentFinished(String experimentId, String status, String errorMessage, long startTime) {
         Optional<Experiment> expOpt = experimentRepository.findByIdWithDetails(experimentId);
         if (expOpt.isPresent()) {
             Experiment exp = expOpt.get();
             exp.setStatus(status);
             exp.setFinishedAt(new Date());
-            exp.setDurationSeconds((System.currentTimeMillis() - startTime) / 1000);
+            long prevDuration = exp.getDurationSeconds() != null ? exp.getDurationSeconds() : 0L;
+            exp.setDurationSeconds(prevDuration + (System.currentTimeMillis() - startTime) / 1000);
             if (errorMessage != null) {
                 if (errorMessage.length() > 500) {
                     errorMessage = errorMessage.substring(0, 500);
                 }
                 exp.setErrorMessage(errorMessage);
+                if ("FAILED".equals(status)) {
+                    String timestamp = ERROR_DATE_FORMAT.format(java.time.Instant.now());
+                    String line = "[" + timestamp + "] " + errorMessage;
+                    String history = exp.getErrorHistory();
+                    if (history == null || history.isBlank()) {
+                        exp.setErrorHistory(line);
+                    } else {
+                        exp.setErrorHistory(history + "\n" + line);
+                    }
+                }
             }
             experimentRepository.save(exp);
         }
+    }
+
+
+    // ======================================================================
+    // Reanudar experimentos
+    // ======================================================================
+
+    public static class ExperimentConflictException extends Exception {
+        public ExperimentConflictException(String message) {
+            super(message);
+        }
+    }
+
+    public static class MissingQubitsException extends Exception {
+        private final List<Map<String, Object>> missing;
+
+        public MissingQubitsException(List<Map<String, Object>> missing) {
+            super("Faltan los qubits de entrada/salida de " + missing.size() + " ciclo(s)");
+            this.missing = missing;
+        }
+
+        public List<Map<String, Object>> getMissing() {
+            return missing;
+        }
+    }
+
+    private static final String GENERATION_ERROR_PREFIX = "Error al generar mutantes";
+
+    /** Estado calculado de un ciclo de un experimento (para reanudar y fusionar). */
+    static class CycleState {
+        MutantCycle cycle;
+        String projectId;
+        long total;
+        long pending;
+        boolean generationComplete;
+        String skipReason; // null si el ciclo se puede ejecutar
+
+        boolean isPending() {
+            return skipReason == null && pending > 0;
+        }
+
+        boolean isIncomplete() {
+            return skipReason != null || pending > 0;
+        }
+
+        String key() {
+            return projectId + "|" + cycle.getId();
+        }
+    }
+
+    private Experiment loadOwned(String experimentId, String userId) throws Exception {
+        Experiment exp = experimentRepository.findByIdWithExecConfig(experimentId)
+                .orElseThrow(() -> new Exception("Experiment not found: " + experimentId));
+        if (exp.getUser() != null && !exp.getUser().getId().equals(userId)) {
+            throw new Exception("Unauthorized to access this experiment");
+        }
+        return exp;
+    }
+
+    List<CycleState> computeCycleStates(Experiment exp) {
+        List<MutantCycle> cycles = mutantCycleRepository.findByExperimentIdWithExecConfig(exp.getId());
+        List<CycleState> result = new ArrayList<>();
+        if (cycles == null) {
+            return result;
+        }
+        for (int i = 0; i < cycles.size(); i++) {
+            MutantCycle mc = cycles.get(i);
+            CycleState st = new CycleState();
+            st.cycle = mc;
+            st.projectId = mc.getProject().getId();
+            st.total = mutantRepository.countTotalByCycle(st.projectId, mc.getId());
+            st.pending = mutantRepository.countPendingByCycle(st.projectId, mc.getId());
+            Boolean gc = mc.getGenerationCompleted();
+            if (gc != null) {
+                st.generationComplete = gc;
+            } else if (st.total > 0) {
+                // Ciclo antiguo con mutantes: se considera generado
+                st.generationComplete = true;
+            } else {
+                boolean last = i == cycles.size() - 1;
+                String msg = exp.getErrorMessage();
+                st.generationComplete = !(last && msg != null && msg.startsWith(GENERATION_ERROR_PREFIX));
+            }
+            if (!st.generationComplete) {
+                st.skipReason = "generación incompleta";
+            } else if (st.total == 0) {
+                st.skipReason = "sin mutantes";
+            }
+            result.add(st);
+        }
+        return result;
+    }
+
+    private CreateExperimentDTO parseDefinition(Experiment exp) {
+        String json = exp.getDefinitionJson();
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            ObjectMapper mapper = new ObjectMapper()
+                    .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            return mapper.readValue(json, CreateExperimentDTO.class);
+        } catch (Exception e) {
+            logger.warn("exp={} no se pudo leer definitionJson: {}", exp.getId(), e.getMessage());
+            return null;
+        }
+    }
+
+    /** Índices de circuitoConfigs de la definición que aún no tienen ciclo con ese circuitIndex. */
+    List<Integer> remainingCircuitIndices(Experiment exp, List<CycleState> states) {
+        List<Integer> remaining = new ArrayList<>();
+        CreateExperimentDTO def = parseDefinition(exp);
+        if (def == null || def.getCircuitConfigs() == null) {
+            return remaining;
+        }
+        java.util.Set<Integer> done = new java.util.HashSet<>();
+        for (CycleState st : states) {
+            if (st.cycle.getCircuitIndex() != null) {
+                done.add(st.cycle.getCircuitIndex());
+            }
+        }
+        for (int i = 0; i < def.getCircuitConfigs().size(); i++) {
+            if (!done.contains(i)) {
+                remaining.add(i);
+            }
+        }
+        return remaining;
+    }
+
+    boolean isResumableStatus(Experiment exp) {
+        return "FAILED".equals(exp.getStatus())
+                || ("RUNNING".equals(exp.getStatus()) && !runRegistry.isRunning(exp.getId()));
+    }
+
+    ResumePreviewDTO buildResumePreview(Experiment exp, List<CycleState> states) {
+        ResumePreviewDTO dto = new ResumePreviewDTO();
+        dto.setResumable(isResumableStatus(exp));
+        if (!dto.isResumable()) {
+            dto.setReason("RUNNING".equals(exp.getStatus())
+                    ? "El experimento se está ejecutando"
+                    : "Solo se pueden reanudar experimentos fallidos o interrumpidos (estado actual: "
+                            + exp.getStatus() + ")");
+        }
+        dto.setHasDefinition(parseDefinition(exp) != null);
+        dto.setRemainingCircuits(remainingCircuitIndices(exp, states).size());
+        for (CycleState st : states) {
+            String name = st.cycle.getName() != null ? st.cycle.getName() : "Cycle " + st.cycle.getId();
+            if (st.skipReason != null) {
+                ResumePreviewDTO.SkippedCycle sk = new ResumePreviewDTO.SkippedCycle();
+                sk.setProjectId(st.projectId);
+                sk.setCycleId(st.cycle.getId());
+                sk.setName(name);
+                sk.setReason(st.skipReason);
+                dto.getSkippedCycles().add(sk);
+            } else if (st.pending > 0) {
+                ExecConfig ec = st.cycle.getExecConfig();
+                ResumePreviewDTO.PendingCycle pc = new ResumePreviewDTO.PendingCycle();
+                pc.setProjectId(st.projectId);
+                pc.setCycleId(st.cycle.getId());
+                pc.setName(name);
+                pc.setPendingMutants(st.pending);
+                pc.setInputQubits(ec != null ? ec.getInputQubits() : null);
+                pc.setOutputQubits(ec != null ? ec.getOutputQubits() : null);
+                pc.setNeedsQubits(pc.getInputQubits() == null || pc.getOutputQubits() == null);
+                fillQubitSuggestion(pc);
+                dto.getPendingCycles().add(pc);
+            }
+        }
+        return dto;
+    }
+
+    /** Qubits de entrada sugeridos a partir de los ids de entrada ya ejecutados (solo acierta el número). */
+    static String suggestInputQubits(List<Integer> inputIds, int qubits) {
+        if (inputIds == null || inputIds.isEmpty()) {
+            return "";
+        }
+        int max = 0;
+        for (Integer id : inputIds) {
+            if (id != null && id > max) {
+                max = id;
+            }
+        }
+        if (max <= 0) {
+            return "";
+        }
+        int k = Math.min(32 - Integer.numberOfLeadingZeros(max), Math.max(qubits, 0));
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < k; i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append(i);
+        }
+        return sb.toString();
+    }
+
+    private static String allQubits(int qubits) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < qubits; i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append(i);
+        }
+        return sb.toString();
+    }
+
+    private void fillQubitSuggestion(ResumePreviewDTO.PendingCycle pc) {
+        int qubits = 1;
+        Project project = projectRepository.findByIdWithQProgram(pc.getProjectId()).orElse(null);
+        if (project != null && project.getQProgram() != null && project.getQProgram().getQubits() > 0) {
+            qubits = project.getQProgram().getQubits();
+        }
+        pc.setQubits(qubits);
+        if (!pc.isNeedsQubits()) {
+            pc.setSuggestedInputQubits(pc.getInputQubits());
+            pc.setSuggestedOutputQubits(pc.getOutputQubits());
+            return;
+        }
+        pc.setSuggestedOutputQubits(allQubits(qubits));
+        List<Integer> ids = mutantResultRepository != null
+                ? mutantResultRepository.findDistinctInputIdsByCycle(pc.getProjectId(), pc.getCycleId())
+                : null;
+        String in = suggestInputQubits(ids, qubits);
+        pc.setSuggestedInputQubits(in);
+        pc.setSuggestedFromResults(!in.isEmpty());
+    }
+
+    public ResumePreviewDTO getResumePreview(String experimentId, String userId) throws Exception {
+        Experiment exp = loadOwned(experimentId, userId);
+        return buildResumePreview(exp, computeCycleStates(exp));
+    }
+
+    /** Punto de lanzamiento asíncrono (sobrescribible en tests). */
+    void startAsync(Runnable task, String experimentId) {
+        CompletableFuture.runAsync(task).exceptionally(t -> {
+            logger.error("Tarea de reanudación {} terminó con error no capturado", experimentId, t);
+            return null;
+        });
+    }
+
+    public Map<String, Object> resumeExperiment(ResumeExperimentDTO req, String userId) throws Exception {
+        Experiment exp = loadOwned(req.getExperimentId(), userId);
+        if (runRegistry.isRunning(exp.getId())) {
+            throw new ExperimentConflictException("El experimento ya está en ejecución");
+        }
+        List<CycleState> states = computeCycleStates(exp);
+        ResumePreviewDTO preview = buildResumePreview(exp, states);
+        if (!preview.isResumable()) {
+            throw new Exception(preview.getReason());
+        }
+
+        Map<String, ResumeExperimentDTO.CycleQubits> provided = new HashMap<>();
+        if (req.getCycles() != null) {
+            for (ResumeExperimentDTO.CycleQubits q : req.getCycles()) {
+                provided.put(q.getProjectId() + "|" + q.getCycleId(), q);
+            }
+        }
+
+        // Qubits resueltos por ciclo pendiente
+        List<Map<String, Object>> missing = new ArrayList<>();
+        Map<String, String[]> qubits = new HashMap<>();
+        for (CycleState st : states) {
+            if (!st.isPending()) {
+                continue;
+            }
+            ExecConfig ec = st.cycle.getExecConfig();
+            ResumeExperimentDTO.CycleQubits q = provided.get(st.key());
+            String in = q != null && q.getInputQubits() != null ? q.getInputQubits().trim()
+                    : (ec != null ? ec.getInputQubits() : null);
+            String out = q != null && q.getOutputQubits() != null ? q.getOutputQubits().trim()
+                    : (ec != null ? ec.getOutputQubits() : null);
+            if (in == null || out == null) {
+                Map<String, Object> m = new HashMap<>();
+                m.put("projectId", st.projectId);
+                m.put("cycleId", st.cycle.getId());
+                m.put("name", st.cycle.getName());
+                missing.add(m);
+            } else {
+                qubits.put(st.key(), new String[] { in, out });
+            }
+        }
+        if (!missing.isEmpty()) {
+            throw new MissingQubitsException(missing);
+        }
+
+        if (!runRegistry.tryRegister(exp.getId())) {
+            throw new ExperimentConflictException("El experimento ya está en ejecución");
+        }
+        List<ExecParams> pendingParams = new ArrayList<>();
+        List<CycleState> pendingStates = new ArrayList<>();
+        List<Integer> remaining;
+        try {
+            // Guardar los qubits en el ExecConfig del ciclo
+            for (CycleState st : states) {
+                if (!st.isPending()) {
+                    continue;
+                }
+                String[] q = qubits.get(st.key());
+                ExecConfig ec = st.cycle.getExecConfig();
+                if (ec == null) {
+                    ec = new ExecConfig(new Date(), exp.getExecConfig() != null ? exp.getExecConfig().getMachine() : "AerSimulator",
+                            exp.getExecConfig() != null ? exp.getExecConfig().getExecAlgorithm() : "AllAgainstAll");
+                    ec.setId(UUID.randomUUID().toString());
+                    ec.setMutantCycle(st.cycle);
+                    st.cycle.setExecConfig(ec);
+                }
+                if (!q[0].equals(ec.getInputQubits()) || !q[1].equals(ec.getOutputQubits())) {
+                    ec.setInputQubits(q[0]);
+                    ec.setOutputQubits(q[1]);
+                    execConfigRepository.save(ec);
+                }
+                pendingStates.add(st);
+                pendingParams.add(ExecParams.fromExecConfig(ec, q[0], q[1]));
+            }
+            remaining = remainingCircuitIndices(exp, states);
+
+            // Actualizar el experimento
+            String history = exp.getErrorHistory() != null ? exp.getErrorHistory() : "";
+            String err = exp.getErrorMessage();
+            if (err != null && !err.isBlank() && !history.contains(err)) {
+                history = appendLine(history, "[" + ERROR_DATE_FORMAT.format(java.time.Instant.now()) + "] " + err);
+            }
+            for (ResumePreviewDTO.SkippedCycle sk : preview.getSkippedCycles()) {
+                history = appendLine(history, "Ciclo " + sk.getName() + " saltado: " + sk.getReason());
+            }
+            exp.setErrorHistory(history.isBlank() ? null : history);
+            exp.setErrorMessage(null);
+            exp.setStatus("RUNNING");
+            exp.setFinishedAt(null);
+            exp.setResumeCount((exp.getResumeCount() != null ? exp.getResumeCount() : 0) + 1);
+            exp.setCompletedCircuits(states.size() - pendingStates.size());
+            experimentRepository.save(exp);
+        } catch (RuntimeException e) {
+            runRegistry.unregister(exp.getId());
+            throw e;
+        }
+
+        final String experimentId = exp.getId();
+        final CreateExperimentDTO def = parseDefinition(exp);
+        final List<Integer> remainingFinal = remaining;
+        startAsync(() -> resumeExperimentAsync(experimentId, pendingStates, pendingParams, def, remainingFinal,
+                userId), experimentId);
+
+        Map<String, Object> res = new HashMap<>();
+        res.put("message", "Experiment resumed");
+        res.put("id", experimentId);
+        res.put("pendingCycles", pendingStates.size());
+        res.put("skippedCycles", preview.getSkippedCycles().size());
+        res.put("remainingCircuits", remaining.size());
+        return res;
+    }
+
+    private static String appendLine(String history, String line) {
+        return history == null || history.isBlank() ? line : history + "\n" + line;
+    }
+
+    void resumeExperimentAsync(String experimentId, List<CycleState> pendingStates, List<ExecParams> params,
+            CreateExperimentDTO def, List<Integer> remainingIndices, String userEmail) {
+        long startTime = System.currentTimeMillis();
+        runRegistry.register(experimentId);
+        try {
+            for (int i = 0; i < pendingStates.size(); i++) {
+                CycleState st = pendingStates.get(i);
+                Project project = projectRepository.findByIdWithQProgram(st.projectId)
+                        .or(() -> projectRepository.findById(st.projectId))
+                        .orElseThrow(() -> new Exception("Project not found: " + st.projectId));
+                long t0 = System.nanoTime();
+                executeCycleInQiskitExec(experimentId, project, st.cycle, params.get(i), true);
+                logger.info("[PERF] exp={} resume cycle={}/{} totalMs={}", experimentId, st.projectId,
+                        st.cycle.getId(), (System.nanoTime() - t0) / 1_000_000);
+                incrementCompleted(experimentId);
+            }
+
+            if (def != null && def.getCircuitConfigs() != null) {
+                for (int idx : remainingIndices) {
+                    if (idx < 0 || idx >= def.getCircuitConfigs().size()) {
+                        continue;
+                    }
+                    processSingleCircuit(experimentId, def.getCircuitConfigs().get(idx), def, idx);
+                    incrementCompleted(experimentId);
+                }
+            }
+
+            markExperimentFinished(experimentId, "COMPLETED", null, startTime);
+            Optional<Experiment> expOpt = experimentRepository.findByIdWithDetails(experimentId);
+            if (expOpt.isPresent()) {
+                notificationService.sendExperimentCompletedEmail(expOpt.get(), userEmail);
+            }
+        } catch (Exception e) {
+            logger.error("Error resuming experiment {}: {}", experimentId, e.getMessage(), e);
+            markExperimentFinished(experimentId, "FAILED", e.getMessage(), startTime);
+            Optional<Experiment> expOpt = experimentRepository.findByIdWithDetails(experimentId);
+            if (expOpt.isPresent()) {
+                notificationService.sendExperimentFailedEmail(expOpt.get(), userEmail, e.getMessage());
+            }
+        } catch (Throwable t) {
+            logger.error("Error grave reanudando experimento {}: {}", experimentId, t.toString(), t);
+            try {
+                String message = t instanceof OutOfMemoryError ? "reper se quedó sin memoria (OutOfMemoryError)"
+                        : "Error interno: " + t;
+                markExperimentFinished(experimentId, "FAILED", message, startTime);
+                Optional<Experiment> expOpt = experimentRepository.findByIdWithDetails(experimentId);
+                if (expOpt.isPresent()) {
+                    notificationService.sendExperimentFailedEmail(expOpt.get(), userEmail, message);
+                }
+            } catch (Throwable ignored) {
+            }
+        } finally {
+            runRegistry.unregister(experimentId);
+        }
+    }
+
+    private void incrementCompleted(String experimentId) {
+        Optional<Experiment> expOpt = experimentRepository.findById(experimentId);
+        if (expOpt.isPresent()) {
+            Experiment exp = expOpt.get();
+            exp.setCompletedCircuits((exp.getCompletedCircuits() != null ? exp.getCompletedCircuits() : 0) + 1);
+            experimentRepository.save(exp);
+        }
+    }
+
+
+    // ======================================================================
+    // Fusionar experimentos
+    // ======================================================================
+
+    static class MergePlan {
+        Experiment survivor;
+        Experiment deleted;
+        List<CycleState> survivorStates;
+        List<CycleState> deletedStates;
+        List<CycleState> duplicates = new ArrayList<>();
+        List<CycleState> survivorKept = new ArrayList<>();
+        List<Integer> deletedRemaining;
+        String resultingStatus;
+    }
+
+    MergePlan planMerge(List<String> ids, String userId) throws Exception {
+        if (ids == null || ids.size() != 2 || ids.get(0) == null || ids.get(0).equals(ids.get(1))) {
+            throw new Exception("Se necesitan dos experimentos distintos para fusionar");
+        }
+        Experiment e1 = loadOwned(ids.get(0), userId);
+        Experiment e2 = loadOwned(ids.get(1), userId);
+        for (Experiment e : List.of(e1, e2)) {
+            if ("RUNNING".equals(e.getStatus()) || runRegistry.isRunning(e.getId())) {
+                throw new Exception("No se pueden fusionar experimentos en ejecución: " + e.getName());
+            }
+        }
+        boolean firstIsOlder = e1.getCreatedAt() == null || e2.getCreatedAt() == null
+                ? e1.getId().compareTo(e2.getId()) <= 0
+                : !e1.getCreatedAt().after(e2.getCreatedAt());
+        MergePlan plan = new MergePlan();
+        plan.survivor = firstIsOlder ? e1 : e2;
+        plan.deleted = firstIsOlder ? e2 : e1;
+        plan.survivorStates = computeCycleStates(plan.survivor);
+        plan.deletedStates = computeCycleStates(plan.deleted);
+
+        java.util.Set<String> deletedProjects = new java.util.HashSet<>();
+        for (CycleState st : plan.deletedStates) {
+            deletedProjects.add(st.projectId);
+        }
+        for (CycleState st : plan.survivorStates) {
+            if (st.isIncomplete() && deletedProjects.contains(st.projectId)) {
+                plan.duplicates.add(st);
+            } else {
+                plan.survivorKept.add(st);
+            }
+        }
+        plan.deletedRemaining = remainingCircuitIndices(plan.deleted, plan.deletedStates);
+
+        boolean anyIncomplete = false;
+        for (CycleState st : plan.survivorKept) {
+            anyIncomplete |= st.isIncomplete();
+        }
+        for (CycleState st : plan.deletedStates) {
+            anyIncomplete |= st.isIncomplete();
+        }
+        plan.resultingStatus = "COMPLETED".equals(plan.deleted.getStatus()) && !anyIncomplete
+                && plan.deletedRemaining.isEmpty() ? "COMPLETED" : "FAILED";
+        return plan;
+    }
+
+    public MergePreviewDTO getMergePreview(List<String> ids, String userId) throws Exception {
+        MergePlan plan = planMerge(ids, userId);
+        MergePreviewDTO dto = new MergePreviewDTO();
+        dto.setSurvivorId(plan.survivor.getId());
+        dto.setSurvivorName(plan.survivor.getName());
+        dto.setDeletedId(plan.deleted.getId());
+        dto.setDeletedName(plan.deleted.getName());
+        dto.setCyclesToMove(plan.deletedStates.size());
+        for (CycleState st : plan.duplicates) {
+            dto.getDuplicateCyclesToDelete()
+                    .add(new MergePreviewDTO.DuplicateCycle(st.projectId, st.cycle.getId(), st.cycle.getName()));
+        }
+        dto.setResultingStatus(plan.resultingStatus);
+        return dto;
+    }
+
+    public Map<String, Object> mergeExperiments(List<String> ids, String userId) throws Exception {
+        MergePlan plan = planMerge(ids, userId);
+        String aId = plan.survivor.getId();
+        String bId = plan.deleted.getId();
+        if (!runRegistry.tryRegister(aId)) {
+            throw new ExperimentConflictException("El experimento " + plan.survivor.getName() + " está en ejecución");
+        }
+        if (!runRegistry.tryRegister(bId)) {
+            runRegistry.unregister(aId);
+            throw new ExperimentConflictException("El experimento " + plan.deleted.getName() + " está en ejecución");
+        }
+        try {
+            transactionTemplate.execute(status -> {
+                for (CycleState st : plan.duplicates) {
+                    mutantCycleRepository.detachFromExperiment(st.projectId, st.cycle.getId());
+                }
+                mutantCycleRepository.moveCycles(plan.deleted, plan.survivor);
+
+                Experiment a = experimentRepository.findByIdWithExecConfig(aId).orElseThrow();
+                Experiment b = experimentRepository.findById(bId).orElseThrow();
+
+                String history = a.getErrorHistory() != null ? a.getErrorHistory() : "";
+                history = addErrorToHistory(history, a.getErrorMessage());
+                if (b.getErrorHistory() != null && !b.getErrorHistory().isBlank()) {
+                    history = appendLine(history, b.getErrorHistory());
+                }
+                history = addErrorToHistory(history, b.getErrorMessage());
+                a.setErrorHistory(history.isBlank() ? null : history);
+
+                String bDate = b.getCreatedAt() != null
+                        ? new java.text.SimpleDateFormat("yyyy-MM-dd").format(b.getCreatedAt())
+                        : "?";
+                String mergedEntry = b.getName() + " (" + b.getId() + ", " + bDate + ")";
+                a.setMergedFrom(a.getMergedFrom() == null || a.getMergedFrom().isBlank() ? mergedEntry
+                        : a.getMergedFrom() + "; " + mergedEntry);
+                if (b.getDefinitionJson() != null) {
+                    a.setDefinitionJson(b.getDefinitionJson());
+                }
+                a.setDurationSeconds((a.getDurationSeconds() != null ? a.getDurationSeconds() : 0L)
+                        + (b.getDurationSeconds() != null ? b.getDurationSeconds() : 0L));
+                if (b.getFinishedAt() != null) {
+                    a.setFinishedAt(b.getFinishedAt());
+                }
+                int totalCycles = plan.survivorKept.size() + plan.deletedStates.size();
+                a.setTotalCircuits(totalCycles + plan.deletedRemaining.size());
+                int completed = 0;
+                for (CycleState st : plan.survivorKept) {
+                    completed += st.isIncomplete() ? 0 : 1;
+                }
+                for (CycleState st : plan.deletedStates) {
+                    completed += st.isIncomplete() ? 0 : 1;
+                }
+                a.setCompletedCircuits(completed);
+                a.setStatus(plan.resultingStatus);
+                if ("COMPLETED".equals(plan.resultingStatus)) {
+                    a.setErrorMessage(null);
+                } else {
+                    a.setErrorMessage(b.getErrorMessage() != null ? b.getErrorMessage()
+                            : "Fusionado con ciclos incompletos");
+                }
+                experimentRepository.save(a);
+                experimentRepository.delete(b);
+                return null;
+            });
+        } finally {
+            runRegistry.unregister(aId);
+            runRegistry.unregister(bId);
+        }
+
+        List<String> jobIds = new ArrayList<>();
+        for (CycleState st : plan.duplicates) {
+            final String projectId = st.projectId;
+            final int cycleId = st.cycle.getId();
+            if (!deletionRegistry.registerCycle(projectId, cycleId)) {
+                continue;
+            }
+            try {
+                jobIds.add(backgroundJobService.submit("delete", userId, () -> {
+                    try {
+                        bulkDeleteService.deleteCycle(projectId, cycleId);
+                        return Map.of("projectId", projectId, "cycleId", cycleId);
+                    } finally {
+                        deletionRegistry.unregisterCycle(projectId, cycleId);
+                    }
+                }));
+            } catch (RuntimeException e) {
+                deletionRegistry.unregisterCycle(projectId, cycleId);
+                throw e;
+            }
+        }
+        Map<String, Object> res = new HashMap<>();
+        res.put("message", "Experiments merged");
+        res.put("id", aId);
+        res.put("deletedId", bId);
+        res.put("status", plan.resultingStatus);
+        res.put("deletionJobIds", jobIds);
+        if (!jobIds.isEmpty()) {
+            res.put("deletionJobId", jobIds.get(0));
+        }
+        return res;
+    }
+
+    private String addErrorToHistory(String history, String error) {
+        if (error == null || error.isBlank() || history.contains(error)) {
+            return history;
+        }
+        return appendLine(history, "[" + ERROR_DATE_FORMAT.format(java.time.Instant.now()) + "] " + error);
     }
 
     public List<ExperimentProgressDTO> getActiveProgress(String userId) {
@@ -864,7 +1577,12 @@ public class ExperimentService {
 
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public List<ExperimentListItemDTO> getUserExperiments(String userId) {
-        return experimentRepository.findListItemsByUserId(userId);
+        List<ExperimentListItemDTO> items = experimentRepository.findListItemsByUserId(userId);
+        for (ExperimentListItemDTO it : items) {
+            it.setResumable("FAILED".equals(it.getStatus())
+                    || ("RUNNING".equals(it.getStatus()) && !runRegistry.isRunning(it.getId())));
+        }
+        return items;
     }
 
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
@@ -885,6 +1603,10 @@ public class ExperimentService {
         dto.setTotalCircuits(e.getTotalCircuits());
         dto.setCompletedCircuits(e.getCompletedCircuits());
         dto.setErrorMessage(e.getErrorMessage());
+        dto.setErrorHistory(e.getErrorHistory());
+        dto.setResumeCount(e.getResumeCount());
+        dto.setMergedFrom(e.getMergedFrom());
+        dto.setResumable(isResumableStatus(e));
         if (e.getExecConfig() != null) {
             dto.setMachine(e.getExecConfig().getMachine());
             dto.setExecAlgorithm(e.getExecConfig().getExecAlgorithm());
@@ -915,6 +1637,11 @@ public class ExperimentService {
                 cDto.setProjectId(projectId);
                 cDto.setProjectName(projectName);
                 cDto.setName(name);
+                if (h.length >= 7) {
+                    cDto.setGenerationCompleted((Boolean) h[4]);
+                    cDto.setInputQubits((String) h[5]);
+                    cDto.setOutputQubits((String) h[6]);
+                }
 
                 Object[] c = countsMap.get(id + "|" + projectId);
                 long totalMutants = 0;

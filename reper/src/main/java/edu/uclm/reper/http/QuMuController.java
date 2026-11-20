@@ -16,6 +16,8 @@ import org.springframework.web.server.ResponseStatusException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import edu.uclm.reper.model.OperatorType;
+import edu.uclm.reper.services.BackgroundJobService;
+import edu.uclm.reper.services.DeletionRegistry;
 import edu.uclm.reper.services.QumuService;
 import edu.uclm.reper.services.ProjectService;
 import edu.uclm.reper.services.QuMuLazyLoadService;
@@ -36,6 +38,12 @@ public class QuMuController extends BaseController {
 
     @Autowired
     private ProjectService projectService;
+
+    @Autowired
+    private BackgroundJobService backgroundJobService;
+
+    @Autowired
+    private DeletionRegistry deletionRegistry;
 
     @Autowired
     private QuMuLazyLoadService qumuLazyLoadService;
@@ -103,13 +111,33 @@ public class QuMuController extends BaseController {
 
     @PostMapping("/deleteMutantCycle")
     public ResponseEntity<?> deleteMutantCycle(@RequestBody Map<String, Object> request, HttpServletRequest req) {
-        try {
-            String projectId = (String) request.get("projectId");
-            int cycleId = (Integer) request.get("cycleId");
+        String email = request != null ? (String) (request.get("email") != null ? request.get("email") : request.get("userId")) : null;
+        String projectId = request != null ? (String) request.get("projectId") : null;
+        Object cycleIdObj = request != null ? request.get("cycleId") : null;
 
-            projectService.deleteMutantCycle(projectId, cycleId);
-            return ResponseEntity.ok(Map.of("message", "Mutant cycle deleted successfully"));
+        this.validateCookie(req, email);
+
+        if (projectId == null || cycleIdObj == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Missing required fields: projectId, cycleId"));
+        }
+        int cycleId = ((Number) cycleIdObj).intValue();
+
+        if (!deletionRegistry.registerCycle(projectId, cycleId)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "Cycle deletion already in progress"));
+        }
+
+        try {
+            String jobId = backgroundJobService.submit("delete", email, () -> {
+                try {
+                    projectService.deleteMutantCycle(projectId, cycleId);
+                    return Map.of("message", "Mutant cycle deleted successfully", "projectId", projectId, "cycleId", cycleId);
+                } finally {
+                    deletionRegistry.unregisterCycle(projectId, cycleId);
+                }
+            });
+            return ResponseEntity.ok(Map.of("message", "Mutant cycle deletion started", "jobId", jobId, "projectId", projectId, "cycleId", cycleId));
         } catch (Exception e) {
+            deletionRegistry.unregisterCycle(projectId, cycleId);
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }

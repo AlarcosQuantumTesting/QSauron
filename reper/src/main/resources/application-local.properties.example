@@ -1,0 +1,40 @@
+# Template only: copy to application-local.properties and fill in real values.
+# Never commit real credentials.
+spring.application.name=qsauron
+server.port=8080
+
+spring.datasource.url=jdbc:mysql://<host>:3306/qsauron
+spring.datasource.username=<db-user>
+spring.datasource.password=<db-password>
+spring.jpa.hibernate.ddl-auto=update
+
+app.cors.allowed-origins=http://localhost:4200
+
+# Downstream services
+app.qumugen.url=http://localhost:8500
+app.qiskitexec.url=http://localhost:8502
+app.mutantanalytics.url=http://localhost:8503
+app.qconvert.url=http://localhost:3000
+app.converter.url=<converter-url>
+app.alaride.url=<alaride-url>
+
+# qiskitexec execution tuning
+app.qiskitexec.batch-size=32
+app.qiskitexec.max-programs-per-request=128
+app.qiskitexec.runner-workers=8
+app.qiskitexec.target-request-seconds=300
+app.qiskitexec.read-timeout-seconds=3600
+app.qiskitexec.poll-interval-ms=3000
+
+# E-mail (Brevo)
+brevo.api.key=<brevo-api-key>
+brevo.api.url=<brevo-api-url>
+brevo.sender.email=<sender-email>
+brevo.sender.name=QSauron
+
+# Import limits (see ProjectImportService)
+app.import.max-files=<n>
+app.import.max-file-bytes=<bytes>
+app.import.max-total-bytes=<bytes>
+app.import.max-request-bytes=<bytes>
+app.import.max-qubits=<n>

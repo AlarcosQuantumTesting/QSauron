@@ -36,6 +36,7 @@ public class ProjectImportService {
     private static final Logger logger = LoggerFactory.getLogger(ProjectImportService.class);
 
     private final ImportContentValidator validator;
+    private final ConverterCatalogService catalog;
     private final QConvertProxy proxy;
     private final ProjectService projectService;
     private final ProjectRepository projectRepository;
@@ -49,6 +50,7 @@ public class ProjectImportService {
 
     public ProjectImportService(
             ImportContentValidator validator,
+            ConverterCatalogService catalog,
             QConvertProxy proxy,
             ProjectService projectService,
             ProjectRepository projectRepository,
@@ -58,6 +60,7 @@ public class ProjectImportService {
             @Value("${app.import.max-file-bytes:2097152}") long maxFileBytes,
             @Value("${app.import.max-qubits:16}") int maxQubits) {
         this.validator = validator;
+        this.catalog = catalog;
         this.proxy = proxy;
         this.projectService = projectService;
         this.projectRepository = projectRepository;
@@ -127,7 +130,7 @@ public class ProjectImportService {
         // 3. Conversión por lotes de los válidos
         if (!validIndices.isEmpty()) {
             List<String> codes = validatedItems.stream().map(ImportContentValidator.ValidatedItem::code).toList();
-            List<String> formats = validatedItems.stream().map(v -> v.format().getId()).toList();
+            List<String> formats = validatedItems.stream().map(v -> v.format().id()).toList();
             List<QConvertResult> convertResults = proxy.convertBatch(codes, formats, "quirk");
 
             // Nombres tomados del usuario
@@ -243,7 +246,7 @@ public class ProjectImportService {
         ImportItemDTO item = new ImportItemDTO(req.getFileName(), req.getFormat(), "temp", req.getCode());
         ImportContentValidator.ValidatedItem v = validator.validate(item);
 
-        List<QConvertResult> results = proxy.convertBatch(List.of(v.code()), List.of(v.format().getId()), "quirk");
+        List<QConvertResult> results = proxy.convertBatch(List.of(v.code()), List.of(v.format().id()), "quirk");
         if (results.isEmpty() || !results.get(0).success()) {
             String err = results.isEmpty() ? "Conversion failed" : results.get(0).error();
             throw new ImportException(ImportException.CONVERSION_FAILED, err != null ? err : "Conversion failed");
@@ -272,7 +275,7 @@ public class ProjectImportService {
                     "Circuit has " + qubits + " qubits; the maximum is 16");
         }
 
-        return new ConvertedCircuitDTO(v.format().getId(), qubits, columns, quirk);
+        return new ConvertedCircuitDTO(v.format().id(), qubits, columns, quirk);
     }
 
     public RepresentationDTO represent(String email, RepresentRequestDTO req) {
@@ -283,11 +286,11 @@ public class ProjectImportService {
             throw new ImportException(ImportException.BAD_REQUEST, "Target format is required", 400);
         }
 
-        ImportFormat format = ImportFormat.fromId(req.getTargetFormat())
+        ConverterFormat format = catalog.find(req.getTargetFormat())
                 .orElseThrow(() -> new ImportException(ImportException.INVALID_FORMAT,
                         "Unknown format: " + req.getTargetFormat(), 400));
 
-        if (!format.isRepresentable()) {
+        if (!format.representable()) {
             throw new ImportException(ImportException.INVALID_FORMAT,
                     "Format " + req.getTargetFormat() + " is not representable", 400);
         }
@@ -302,14 +305,14 @@ public class ProjectImportService {
             throw new ImportException(ImportException.FILE_TOO_LARGE, "Circuit exceeds " + formatBytes(maxFileBytes), 400);
         }
 
-        QConvertResult cr = proxy.convertOne(quirk.toString(), "quirk", format.getId());
+        QConvertResult cr = proxy.convertOne(quirk.toString(), "quirk", format.id());
         if (!cr.success()) {
             String err = cr.error() != null ? cr.error() : "Conversion failed";
             throw new ImportException(ImportException.CONVERSION_FAILED, err, 422);
         }
 
-        String extension = format.getExtensions().isEmpty() ? "" : format.getExtensions().get(0);
-        return new RepresentationDTO(format.getId(), extension, cr.output());
+        String extension = format.extensions().isEmpty() ? "" : format.extensions().get(0);
+        return new RepresentationDTO(format.id(), extension, cr.output());
     }
 
     private static String formatBytes(long b) {

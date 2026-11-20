@@ -70,6 +70,12 @@ public class ProjectService {
     @Autowired
     private edu.uclm.reper.repository.MutantRepository mutantRepository;
 
+    @Autowired
+    private BulkDeleteService bulkDeleteService;
+
+    @Autowired
+    private DeletionRegistry deletionRegistry;
+
     // Crea un nuevo proyecto y lo asocia con un usuario
     public Project createProjectForUser(String projectName, String userId) {
         Optional<User> userOpt = userRepository.findById(userId);
@@ -139,6 +145,9 @@ public class ProjectService {
         Map<String, ProjectSummaryDTO> projectMap = new java.util.LinkedHashMap<>();
         for (Object[] row : projectRows) {
             String pId = (String) row[0];
+            if (deletionRegistry != null && deletionRegistry.isProjectDeleting(pId)) {
+                continue;
+            }
             String pName = (String) row[1];
             projectIds.add(pId);
             ProjectSummaryDTO pDto = new ProjectSummaryDTO(pId, pName, new ArrayList<>());
@@ -158,6 +167,9 @@ public class ProjectService {
             for (Object[] mRow : mutantRows) {
                 String pId = (String) mRow[0];
                 int cId = ((Number) mRow[1]).intValue();
+                if (deletionRegistry != null && deletionRegistry.isCycleDeleting(pId, cId)) {
+                    continue;
+                }
                 int mIndex = ((Number) mRow[2]).intValue();
                 String opName = (String) mRow[3];
                 OperatorSummaryDTO opDto = opName != null ? new OperatorSummaryDTO(opName) : null;
@@ -175,6 +187,9 @@ public class ProjectService {
             for (Object[] cRow : cycleRows) {
                 String pId = (String) cRow[0];
                 int cId = ((Number) cRow[1]).intValue();
+                if (deletionRegistry != null && deletionRegistry.isCycleDeleting(pId, cId)) {
+                    continue;
+                }
                 String cName = (String) cRow[2];
 
                 List<MutantSummaryDTO> mutants = mutantsByCycle.getOrDefault(pId + ":" + cId, new ArrayList<>());
@@ -220,6 +235,11 @@ public class ProjectService {
     public List<ProjectLightSummaryDTO> getLightSidebarProjectsByUser(String email)
             throws Exception {
         List<ProjectLightSummaryDTO> projects = projectRepository.findLightProjectsByUserId(email);
+        if (projects != null && deletionRegistry != null) {
+            projects = projects.stream()
+                    .filter(p -> !deletionRegistry.isProjectDeleting(p.getId()))
+                    .collect(Collectors.toList());
+        }
         return projects;
     }
 
@@ -237,6 +257,9 @@ public class ProjectService {
 
             Object[] arr = (Object[]) o;
             String id = String.valueOf(arr[0]);
+            if (deletionRegistry != null && deletionRegistry.isProjectDeleting(id)) {
+                continue;
+            }
             String name = String.valueOf(arr[1]);
             Generator generator = (Generator) arr[2];
             if (generator != null) {
@@ -430,7 +453,7 @@ public class ProjectService {
 
     public boolean deleteProject(String projectId) {
         try {
-            projectRepository.deleteById(projectId);
+            bulkDeleteService.deleteProject(projectId);
             return true;
         } catch (Exception e) {
             return false;
@@ -882,7 +905,7 @@ public class ProjectService {
     }
 
     public void deleteMutantCycle(String projectId, int cycleId) throws Exception {
-        mutantCycleRepository.deleteById(new MutantCycleId(projectId, cycleId));
+        bulkDeleteService.deleteCycle(projectId, cycleId);
     }
 
     public void createDemoProjectForUser(User user) {

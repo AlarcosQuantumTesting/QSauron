@@ -16,6 +16,10 @@ public class ExperimentDetailDTO {
     private String execAlgorithm;
     private String errorMessage;
     private List<CycleStatsDTO> cycles;
+    private String errorHistory;
+    private Integer resumeCount;
+    private String mergedFrom;
+    private boolean resumable;
 
     public ExperimentDetailDTO() {}
 
@@ -54,4 +58,13 @@ public class ExperimentDetailDTO {
 
     public List<CycleStatsDTO> getCycles() { return cycles; }
     public void setCycles(List<CycleStatsDTO> cycles) { this.cycles = cycles; }
+
+    public String getErrorHistory() { return errorHistory; }
+    public void setErrorHistory(String errorHistory) { this.errorHistory = errorHistory; }
+    public Integer getResumeCount() { return resumeCount; }
+    public void setResumeCount(Integer resumeCount) { this.resumeCount = resumeCount; }
+    public String getMergedFrom() { return mergedFrom; }
+    public void setMergedFrom(String mergedFrom) { this.mergedFrom = mergedFrom; }
+    public boolean isResumable() { return resumable; }
+    public void setResumable(boolean resumable) { this.resumable = resumable; }
 }

@@ -61,7 +61,7 @@ public class QuMuLazyLoadService {
         this.mutantResultRepository = mutantResultRepository;
     }
 
-    private void checkAccess(String email, String projectId) {
+    public void checkAccess(String email, String projectId) {
         if (!projectRepository.isUserInProject(projectId, email)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User is not associated with the project");
         }

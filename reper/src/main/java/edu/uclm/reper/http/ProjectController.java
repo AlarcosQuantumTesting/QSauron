@@ -15,8 +15,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import edu.uclm.reper.model.Project;
 import edu.uclm.reper.model.User;
+import edu.uclm.reper.services.BackgroundJobService;
+import edu.uclm.reper.services.DeletionRegistry;
 import edu.uclm.reper.services.ProjectService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.HttpStatus;
 
 @RestController
 @RequestMapping("/projects")
@@ -24,6 +27,12 @@ public class ProjectController extends BaseController {
 
     @Autowired
     private ProjectService projectService;
+
+    @Autowired
+    private BackgroundJobService backgroundJobService;
+
+    @Autowired
+    private DeletionRegistry deletionRegistry;
 
     /**
      * Crea un nuevo proyecto y lo asocia con un usuario
@@ -99,20 +108,31 @@ public class ProjectController extends BaseController {
 
     @PostMapping("/delete")
     public ResponseEntity<?> deleteProject(@RequestBody Map<String, String> request, HttpServletRequest req) {
-        // deleteProject request usually only has projectId.
-        // If we strictly need validation against a user, we need the userId in the
-        // request.
-        // Assuming for now we skip strict user-token validation for delete or it might
-        // fail if userId is missing.
-        // However, standard practice implies we should validate the user owns the
-        // project or at least is the one deleting.
-        // If the request doesn't have userId, this will pass null.
-        // this.validateCookie(req, request.get("userId"));
+        String userId = request != null ? (request.get("userId") != null ? request.get("userId") : request.get("email")) : null;
+        String projectId = request != null ? request.get("projectId") : null;
+        this.validateCookie(req, userId);
+
+        if (projectId == null || projectId.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Missing projectId"));
+        }
+
+        if (!deletionRegistry.registerProject(projectId)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "Project deletion already in progress"));
+        }
+
         try {
-            projectService.deleteProject(request.get("projectId"));
-            return ResponseEntity.ok().build();
+            String jobId = backgroundJobService.submit("delete", userId, () -> {
+                try {
+                    projectService.deleteProject(projectId);
+                    return Map.of("message", "Project deleted successfully", "id", projectId);
+                } finally {
+                    deletionRegistry.unregisterProject(projectId);
+                }
+            });
+            return ResponseEntity.ok(Map.of("message", "Project deletion started", "jobId", jobId, "id", projectId));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+            deletionRegistry.unregisterProject(projectId);
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
 

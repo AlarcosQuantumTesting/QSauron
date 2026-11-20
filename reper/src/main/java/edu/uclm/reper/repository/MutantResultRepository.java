@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -66,4 +67,10 @@ public interface MutantResultRepository extends JpaRepository<MutantResult, Long
 
     @Query("SELECT r.id, r.result FROM MutantResult r WHERE r.mutant.id = :mutantId")
     List<Object[]> findByMutantIdLight(@Param("mutantId") int mutantId);
+
+    @Query("SELECT DISTINCT r.id FROM MutantResult r WHERE r.mutant.mutantCycle.project.id = :projectId AND r.mutant.mutantCycle.id = :cycleId ORDER BY r.id")
+    List<Integer> findDistinctInputIdsByCycle(@Param("projectId") String projectId, @Param("cycleId") int cycleId);
+
+    @Query("SELECT r.mutant.id, r.id, r.result FROM MutantResult r WHERE r.mutant.id IN :ids")
+    List<Object[]> findResultsByMutantIds(@Param("ids") Collection<Integer> ids);
 }

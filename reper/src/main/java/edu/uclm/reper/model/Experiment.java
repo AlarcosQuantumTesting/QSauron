@@ -14,6 +14,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
@@ -55,6 +56,20 @@ public class Experiment {
 
     @Column(name = "error_message", length = 2000)
     private String errorMessage;
+
+    @Lob
+    @Column(name = "definition_json", columnDefinition = "LONGTEXT")
+    private String definitionJson;
+
+    @Lob
+    @Column(name = "error_history", columnDefinition = "LONGTEXT")
+    private String errorHistory;
+
+    @Column(name = "resume_count")
+    private Integer resumeCount = 0;
+
+    @Column(name = "merged_from", columnDefinition = "TEXT")
+    private String mergedFrom;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
@@ -175,5 +190,37 @@ public class Experiment {
 
     public void setMutantCycles(List<MutantCycle> mutantCycles) {
         this.mutantCycles = mutantCycles;
+    }
+
+    public String getDefinitionJson() {
+        return definitionJson;
+    }
+
+    public void setDefinitionJson(String definitionJson) {
+        this.definitionJson = definitionJson;
+    }
+
+    public String getErrorHistory() {
+        return errorHistory;
+    }
+
+    public void setErrorHistory(String errorHistory) {
+        this.errorHistory = errorHistory;
+    }
+
+    public Integer getResumeCount() {
+        return resumeCount != null ? resumeCount : 0;
+    }
+
+    public void setResumeCount(Integer resumeCount) {
+        this.resumeCount = resumeCount;
+    }
+
+    public String getMergedFrom() {
+        return mergedFrom;
+    }
+
+    public void setMergedFrom(String mergedFrom) {
+        this.mergedFrom = mergedFrom;
     }
 }
