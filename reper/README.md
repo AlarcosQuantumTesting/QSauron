@@ -26,7 +26,6 @@
 - [Testing](#testing)
 - [Documentation](#documentation)
 - [Roadmap](#roadmap)
-- [Contributing](#contributing)
 - [License](#license)
 
 ## Overview
@@ -200,10 +199,6 @@ mvn test
 - [ ] Review session checks on `/qucoreper/getcircuit` and `/qucoreper/savecircuit`
 - [ ] Reduce blocking calls in the Alaride proxy
 - [ ] Container image and compose file
-
-## Contributing
-
-See [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## License
 
